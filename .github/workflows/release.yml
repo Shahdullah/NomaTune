@@ -13,18 +13,18 @@ permissions:
 
 jobs:
   build:
-    name: Build (${{ matrix.distribution }}-${{ matrix.device }}-${{ matrix.abi }})
+    name: Build (${{ matrix.device }}-${{ matrix.abi }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { distribution: gms, distributionName: Gms, device: mobile, deviceName: Mobile, abi: universal }
-          - { distribution: gms, distributionName: Gms, device: mobile, deviceName: Mobile, abi: arm64    }
-          - { distribution: gms, distributionName: Gms, device: mobile, deviceName: Mobile, abi: armeabi  }
-          - { distribution: gms, distributionName: Gms, device: mobile, deviceName: Mobile, abi: x86_64   }
-          - { distribution: gms, distributionName: Gms, device: mobile, deviceName: Mobile, abi: x86      }
-          - { distribution: gms, distributionName: Gms, device: tv,     deviceName: Tv,     abi: universal }
+          - { device: mobile, deviceName: Mobile, abi: universal }
+          - { device: mobile, deviceName: Mobile, abi: arm64    }
+          - { device: mobile, deviceName: Mobile, abi: armeabi  }
+          - { device: mobile, deviceName: Mobile, abi: x86_64   }
+          - { device: mobile, deviceName: Mobile, abi: x86      }
+          - { device: tv,     deviceName: Tv,     abi: universal }
 
     steps:
       - uses: actions/checkout@v4
@@ -51,9 +51,9 @@ jobs:
           ABI="${{ matrix.abi }}"
           ABI_CAP="$(tr '[:lower:]' '[:upper:]' <<< "${ABI:0:1}")${ABI:1}"
           DEVICE="${{ matrix.device }}"
-          echo "gradle_task=assemble${{ matrix.distributionName }}${{ matrix.deviceName }}${ABI_CAP}Release" >> "$GITHUB_OUTPUT"
-          echo "apk_name=app-${DEVICE}-${ABI}-release.apk"   >> "$GITHUB_OUTPUT"
-          echo "artifact_name=app-${DEVICE}-${ABI}-release"  >> "$GITHUB_OUTPUT"
+          echo "gradle_task=assembleGms${{ matrix.deviceName }}${ABI_CAP}Release" >> "$GITHUB_OUTPUT"
+          echo "apk_name=app-${DEVICE}-${ABI}-release.apk"  >> "$GITHUB_OUTPUT"
+          echo "artifact_name=app-${DEVICE}-${ABI}-release" >> "$GITHUB_OUTPUT"
 
       - name: Set up signing keystore
         shell: bash
