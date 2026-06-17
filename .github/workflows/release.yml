@@ -15,8 +15,9 @@ permissions:
 
 jobs:
   release:
-    name: Build & Release APK
+    name: Build & Release APKs
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,40 +31,79 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Grant execute permission for gradlew
+      - name: Grant execute permission
         run: chmod +x gradlew
 
-      - name: Decode keystore (if provided)
+      # Use release keystore if secrets are set, otherwise auto-generate one
+      # so APKs are always signed and installable on Android.
+      - name: Set up signing keystore
         id: keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > nomatune.jks
-            echo "KEYSTORE_PATH=$(pwd)/nomatune.jks" >> $GITHUB_ENV
-            echo "signed=true" >> $GITHUB_OUTPUT
+            echo "$KEYSTORE_BASE64" | base64 -d > release.jks
+            echo "KEYSTORE_PATH=$(pwd)/release.jks"    >> $GITHUB_ENV
+            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
+            echo "KEY_ALIAS=$KEY_ALIAS"                 >> $GITHUB_ENV
+            echo "KEY_PASSWORD=$KEY_PASSWORD"            >> $GITHUB_ENV
+            echo "Signed with release keystore."
           else
-            echo "signed=false" >> $GITHUB_OUTPUT
-            echo "::warning ::No keystore provided. APKs will be unsigned. Set KEYSTORE_BASE64 secret to enable signing."
+            keytool -genkeypair -v \
+              -keystore release.jks \
+              -alias nomatune \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=NomaTune, OU=App, O=Shahdullah, L=Unknown, S=Unknown, C=US" \
+              -storepass nomatune123 -keypass nomatune123 2>/dev/null
+            echo "KEYSTORE_PATH=$(pwd)/release.jks" >> $GITHUB_ENV
+            echo "KEYSTORE_PASSWORD=nomatune123"     >> $GITHUB_ENV
+            echo "KEY_ALIAS=nomatune"                >> $GITHUB_ENV
+            echo "KEY_PASSWORD=nomatune123"          >> $GITHUB_ENV
+            echo "::warning ::No KEYSTORE_BASE64 secret found — signed with auto-generated key. Add signing secrets for a production keystore."
           fi
 
-      # Build flavor format: <distribution><device><abi><BuildType>
-      # We build the most common combinations for distribution.
-      - name: Build Foss / Mobile / Universal (Release)
-        env:
-          KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleFossMobileUniversalRelease --stacktrace
-
-      - name: Build GMS / Mobile / Universal (Release)
-        env:
-          KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      - name: Build Universal APK
         run: ./gradlew assembleGmsMobileUniversalRelease --stacktrace
+        env:
+          KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
+          KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ env.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+
+      - name: Build arm64-v8a APK
+        run: ./gradlew assembleGmsMobileArm64Release --stacktrace
+        env:
+          KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
+          KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ env.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+
+      - name: Build armeabi-v7a APK
+        run: ./gradlew assembleGmsMobileArmeabiRelease --stacktrace
+        env:
+          KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
+          KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ env.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+
+      - name: Build x86 APK
+        run: ./gradlew assembleGmsMobileX86Release --stacktrace
+        env:
+          KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
+          KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ env.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+
+      - name: Build x86_64 APK
+        run: ./gradlew assembleGmsMobileX86_64Release --stacktrace
+        env:
+          KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
+          KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ env.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
 
       - name: Get version
         id: get_version
@@ -75,20 +115,29 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Collect APKs
+      - name: Collect and rename APKs
         run: |
           mkdir -p release-apks
-          find app/build/outputs/apk -name "*.apk" -exec cp {} release-apks/ \;
-          ls -la release-apks/
-
-      - name: Rename APKs for clarity
-        run: |
-          cd release-apks
-          for f in *.apk; do
-            newname=$(echo "$f" | sed "s/app-/nomatune-/" | sed "s/-release/-v${{ steps.get_version.outputs.version }}/")
-            mv "$f" "$newname"
+          VERSION="${{ steps.get_version.outputs.version }}"
+          find app/build/outputs/apk -name "*-release.apk" | while read f; do
+            # Determine ABI from path segment
+            if echo "$f" | grep -q "universal"; then
+              abi="universal"
+            elif echo "$f" | grep -q "arm64"; then
+              abi="arm64-v8a"
+            elif echo "$f" | grep -q "armeabi"; then
+              abi="armeabi-v7a"
+            elif echo "$f" | grep -q "x86_64"; then
+              abi="x86_64"
+            elif echo "$f" | grep -q "x86"; then
+              abi="x86"
+            else
+              abi="unknown"
+            fi
+            cp "$f" "release-apks/NomaTune-v${VERSION}-${abi}.apk"
           done
-          ls -la
+          echo "--- Built APKs ---"
+          ls -lh release-apks/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -98,11 +147,23 @@ jobs:
           body: |
             ## 🎵 NomaTune v${{ steps.get_version.outputs.version }}
 
-            Material 3 Expressive music player with YouTube Music & local file support.
+            Material 3 Expressive music player — stream YouTube Music ad-free, play local files, and enjoy synced lyrics.
 
-            ### 📥 Downloads
-            - **`nomatune-foss-mobile-universal-v${{ steps.get_version.outputs.version }}.apk`** — FOSS build (no Google services). Best for F-Droid users.
-            - **`nomatune-gms-mobile-universal-v${{ steps.get_version.outputs.version }}.apk`** — With Google services (cast, account sync, etc.)
+            ### 📥 Download
+
+            | APK | Description |
+            |-----|-------------|
+            | `NomaTune-v${{ steps.get_version.outputs.version }}-universal.apk` | Works on all devices (recommended) |
+            | `NomaTune-v${{ steps.get_version.outputs.version }}-arm64-v8a.apk` | Most modern Android phones |
+            | `NomaTune-v${{ steps.get_version.outputs.version }}-armeabi-v7a.apk` | Older/32-bit ARM devices |
+            | `NomaTune-v${{ steps.get_version.outputs.version }}-x86_64.apk` | x86_64 emulators / Chromebooks |
+            | `NomaTune-v${{ steps.get_version.outputs.version }}-x86.apk` | x86 emulators |
+
+            ### 📲 Installation
+            1. Download the APK for your device (start with **universal** if unsure)
+            2. Enable **Install from unknown sources** in Android Settings → Security
+            3. Tap the APK file to install
+            > If upgrading from a previous build signed with a different key, uninstall the old version first.
 
             ### ✨ Features
             - 🎵 Ad-free YouTube Music streaming
@@ -112,20 +173,11 @@ jobs:
             - 🎨 Material 3 Expressive UI with dynamic colors
             - 👥 Multiple account support
             - 🎚️ Equalizer, loudness normalization, tempo/pitch controls
-            - 🎯 Last.fm scrobbling, ListenBrainz, Discord RPC
-
-            ### 📲 Installation
-            1. Download the APK that suits you (FOSS or GMS)
-            2. Enable "Install from unknown sources" in your Android settings
-            3. Tap the APK to install
-
-            ### 🛠️ Build Info
-            - Built with GitHub Actions
-            - Universal ABI (works on all Android devices)
-            - Min Android version: 8.0 (API 26)
+            - 🎯 Last.fm, ListenBrainz, Discord RPC
+            - ☕ [Buy Me a Chai](https://buymeachai.in/freemusic) if you enjoy the app!
 
             ---
-            Made with ❤️ by Shahdullah
+            Made with ❤️ by [Shahdullah](https://github.com/Shahdullah)
           files: release-apks/*.apk
           draft: false
           prerelease: false
