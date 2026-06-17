@@ -1,0 +1,51 @@
+name: Build NomaTune APK
+
+on:
+  push:
+    branches: [ 'main', 'dev' ]
+    paths-ignore:
+      - 'README.md'
+      - 'LICENSE'
+      - 'PRIVACY.md'
+      - 'CONTRIBUTING.md'
+      - 'assets/**'
+      - 'fastlane/**'
+  pull_request:
+    branches: [ 'main' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # Build flavors are: distribution × device × abi
+      # E.g. FossMobileUniversal, GmsMobileArm64, etc.
+      - name: Build debug APK (Foss / Mobile / Universal)
+        run: ./gradlew assembleFossMobileUniversalDebug --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: nomatune-debug
+          path: app/build/outputs/apk/fossMobileUniversal/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
