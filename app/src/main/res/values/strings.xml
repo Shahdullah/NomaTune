@@ -1051,4 +1051,6 @@
     <string name="no_saved_accounts">No saved accounts yet</string>
     <string name="remove_account">Remove account</string>
     <string name="youtube_channels">YouTube channels</string>
+    <string name="use_system_font">Use system font</string>
+    <string name="use_system_font_desc">Use the device font instead of the app font</string>
 </resources>

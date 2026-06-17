@@ -2,181 +2,187 @@ name: Release NomaTune
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+    paths:
+      - app/build.gradle.kts
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (e.g. 1.0.0)'
-        required: true
+        description: 'Version to release (e.g. 1.0.1). Leave blank to use version from build.gradle.kts'
+        required: false
 
 permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build & Release APKs
+  build:
+    name: Build (${{ matrix.distribution }}-${{ matrix.device }}-${{ matrix.abi }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { distribution: gms,  distributionName: Gms,  device: mobile, deviceName: Mobile, abi: universal }
+          - { distribution: gms,  distributionName: Gms,  device: mobile, deviceName: Mobile, abi: arm64    }
+          - { distribution: gms,  distributionName: Gms,  device: mobile, deviceName: Mobile, abi: armeabi  }
+          - { distribution: gms,  distributionName: Gms,  device: mobile, deviceName: Mobile, abi: x86_64   }
+          - { distribution: gms,  distributionName: Gms,  device: mobile, deviceName: Mobile, abi: x86      }
+          - { distribution: foss, distributionName: Foss, device: mobile, deviceName: Mobile, abi: universal }
+          - { distribution: izzy, distributionName: Izzy, device: mobile, deviceName: Mobile, abi: universal }
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
           java-version: '21'
+          distribution: temurin
 
-      - name: Setup Gradle
+      - name: Set Up Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-cleanup: on-success
 
-      - name: Grant execute permission
+      - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # Use release keystore if secrets are set, otherwise auto-generate one
-      # so APKs are always signed and installable on Android.
+      - name: Resolve variant names
+        id: variant
+        shell: bash
+        run: |
+          set -euo pipefail
+          ABI="${{ matrix.abi }}"
+          ABI_CAP="$(tr '[:lower:]' '[:upper:]' <<< "${ABI:0:1}")${ABI:1}"
+          echo "gradle_task=assemble${{ matrix.distributionName }}${{ matrix.deviceName }}${ABI_CAP}Release" >> "$GITHUB_OUTPUT"
+          if [ "${{ matrix.distribution }}" = "gms" ]; then
+            echo "apk_stem=NomaTune-${{ matrix.device }}-${ABI}" >> "$GITHUB_OUTPUT"
+          else
+            echo "apk_stem=NomaTune-${{ matrix.distribution }}-${{ matrix.device }}-${ABI}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up signing keystore
-        id: keystore
+        shell: bash
         env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_B64: ${{ secrets.KEYSTORE }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > release.jks
-            echo "KEYSTORE_PATH=$(pwd)/release.jks"    >> $GITHUB_ENV
-            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> $GITHUB_ENV
-            echo "KEY_ALIAS=$KEY_ALIAS"                 >> $GITHUB_ENV
-            echo "KEY_PASSWORD=$KEY_PASSWORD"            >> $GITHUB_ENV
-            echo "Signed with release keystore."
+          if [ -n "${KEYSTORE_B64:-}" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > /tmp/release.jks
+            echo "KEYSTORE_PATH=/tmp/release.jks"        >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"  >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$KEY_ALIAS"                  >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"            >> "$GITHUB_ENV"
           else
             keytool -genkeypair -v \
-              -keystore release.jks \
-              -alias nomatune \
+              -keystore /tmp/release.jks -alias nomatune \
               -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=NomaTune, OU=App, O=Shahdullah, L=Unknown, S=Unknown, C=US" \
+              -dname "CN=NomaTune,O=Shahdullah,C=US" \
               -storepass nomatune123 -keypass nomatune123 2>/dev/null
-            echo "KEYSTORE_PATH=$(pwd)/release.jks" >> $GITHUB_ENV
-            echo "KEYSTORE_PASSWORD=nomatune123"     >> $GITHUB_ENV
-            echo "KEY_ALIAS=nomatune"                >> $GITHUB_ENV
-            echo "KEY_PASSWORD=nomatune123"          >> $GITHUB_ENV
-            echo "::warning ::No KEYSTORE_BASE64 secret found — signed with auto-generated key. Add signing secrets for a production keystore."
+            echo "KEYSTORE_PATH=/tmp/release.jks" >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=nomatune123"  >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=nomatune"             >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=nomatune123"       >> "$GITHUB_ENV"
+            echo "::warning::No KEYSTORE secret — APK signed with a temporary key. Add KEYSTORE, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD GitHub secrets for production signing."
           fi
 
-      - name: Build Universal APK
-        run: ./gradlew assembleGmsMobileUniversalRelease --stacktrace
+      - name: Build APK
+        run: ./gradlew "${{ steps.variant.outputs.gradle_task }}"
         env:
-          KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
-          KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ env.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+          LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+          LASTFM_SECRET: ${{ secrets.LASTFM_SECRET }}
+          TOGETHER_BEARER_TOKEN: ${{ secrets.TOGETHER_BEARER_TOKEN }}
+          CANVAS_BEARER_TOKEN: ${{ secrets.CANVAS_BEARER_TOKEN }}
 
-      - name: Build arm64-v8a APK
-        run: ./gradlew assembleGmsMobileArm64Release --stacktrace
-        env:
-          KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
-          KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ env.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+      - name: Find and collect APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIST="${{ matrix.distribution }}"
+          STEM="${{ steps.variant.outputs.apk_stem }}"
+          mkdir -p release-apks
 
-      - name: Build armeabi-v7a APK
-        run: ./gradlew assembleGmsMobileArmeabiRelease --stacktrace
-        env:
-          KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
-          KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ env.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+          RAW="$(find app/build/outputs/apk -type f -name "*.apk" ! -name "*-signed*" | head -n 1)"
+          if [ -z "${RAW:-}" ]; then
+            echo "No APK found!" && find app/build/outputs/apk || true && exit 1
+          fi
 
-      - name: Build x86 APK
-        run: ./gradlew assembleGmsMobileX86Release --stacktrace
-        env:
-          KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
-          KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ env.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+          if [ "$DIST" = "gms" ]; then
+            "$JAVA_HOME/bin/jarsigner" \
+              -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" \
+              -keypass "$KEY_PASSWORD" \
+              -signedjar "release-apks/${STEM}-release.apk" \
+              "$RAW" "$KEY_ALIAS"
+          else
+            cp "$RAW" "release-apks/${STEM}-release.apk"
+          fi
+          echo "Built:" && ls -lh release-apks/
 
-      - name: Build x86_64 APK
-        run: ./gradlew assembleGmsMobileX86_64Release --stacktrace
-        env:
-          KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
-          KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ env.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.variant.outputs.apk_stem }}
+          path: release-apks/${{ steps.variant.outputs.apk_stem }}-release.apk
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Get version
-        id: get_version
+        id: version
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-          else
-            VERSION="${GITHUB_REF#refs/tags/v}"
+          V="${{ github.event.inputs.version }}"
+          if [ -z "${V:-}" ]; then
+            V="$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)"
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$V" >> "$GITHUB_OUTPUT"
 
-      - name: Collect and rename APKs
+      - name: Download all APKs
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Collect APKs
         run: |
           mkdir -p release-apks
-          VERSION="${{ steps.get_version.outputs.version }}"
-          find app/build/outputs/apk -name "*-release.apk" | while read f; do
-            # Determine ABI from path segment
-            if echo "$f" | grep -q "universal"; then
-              abi="universal"
-            elif echo "$f" | grep -q "arm64"; then
-              abi="arm64-v8a"
-            elif echo "$f" | grep -q "armeabi"; then
-              abi="armeabi-v7a"
-            elif echo "$f" | grep -q "x86_64"; then
-              abi="x86_64"
-            elif echo "$f" | grep -q "x86"; then
-              abi="x86"
-            else
-              abi="unknown"
-            fi
-            cp "$f" "release-apks/NomaTune-v${VERSION}-${abi}.apk"
-          done
-          echo "--- Built APKs ---"
+          find artifacts -name "*.apk" -exec cp {} release-apks/ \;
           ls -lh release-apks/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: NomaTune v${{ steps.get_version.outputs.version }}
+          tag_name: v${{ steps.version.outputs.version }}
+          name: NomaTune v${{ steps.version.outputs.version }}
           body: |
-            ## 🎵 NomaTune v${{ steps.get_version.outputs.version }}
+            ## 🎵 NomaTune v${{ steps.version.outputs.version }}
 
-            Material 3 Expressive music player — stream YouTube Music ad-free, play local files, and enjoy synced lyrics.
+            Material 3 music player — stream YouTube Music ad-free, play local files, and enjoy synced lyrics.
 
             ### 📥 Download
 
-            | APK | Description |
-            |-----|-------------|
-            | `NomaTune-v${{ steps.get_version.outputs.version }}-universal.apk` | Works on all devices (recommended) |
-            | `NomaTune-v${{ steps.get_version.outputs.version }}-arm64-v8a.apk` | Most modern Android phones |
-            | `NomaTune-v${{ steps.get_version.outputs.version }}-armeabi-v7a.apk` | Older/32-bit ARM devices |
-            | `NomaTune-v${{ steps.get_version.outputs.version }}-x86_64.apk` | x86_64 emulators / Chromebooks |
-            | `NomaTune-v${{ steps.get_version.outputs.version }}-x86.apk` | x86 emulators |
+            | APK | Who it is for |
+            |-----|--------------|
+            | `NomaTune-mobile-universal-release.apk` | ✅ **Recommended** — works on all devices |
+            | `NomaTune-mobile-arm64-release.apk` | Most modern Android phones (64-bit ARM) |
+            | `NomaTune-mobile-armeabi-release.apk` | Older / 32-bit ARM devices |
+            | `NomaTune-mobile-x86_64-release.apk` | x86_64 emulators / Chromebooks |
+            | `NomaTune-mobile-x86-release.apk` | x86 emulators |
+            | `NomaTune-foss-mobile-universal-release.apk` | FOSS build (no proprietary deps) |
+            | `NomaTune-izzy-mobile-universal-release.apk` | IzzyOnDroid variant |
 
-            ### 📲 Installation
-            1. Download the APK for your device (start with **universal** if unsure)
-            2. Enable **Install from unknown sources** in Android Settings → Security
-            3. Tap the APK file to install
-            > If upgrading from a previous build signed with a different key, uninstall the old version first.
+            ### 📲 How to install
+            1. Download the APK (try **universal** first)
+            2. Android Settings → Security → enable **Install unknown apps**
+            3. Tap the downloaded APK to install
+            > If you previously installed a version with a different signing key, uninstall it first.
 
-            ### ✨ Features
-            - 🎵 Ad-free YouTube Music streaming
-            - 📁 Local file playback
-            - 🎤 Live synced lyrics with AI translation
-            - 📥 Offline downloads
-            - 🎨 Material 3 Expressive UI with dynamic colors
-            - 👥 Multiple account support
-            - 🎚️ Equalizer, loudness normalization, tempo/pitch controls
-            - 🎯 Last.fm, ListenBrainz, Discord RPC
-            - ☕ [Buy Me a Chai](https://buymeachai.in/freemusic) if you enjoy the app!
-
-            ---
             Made with ❤️ by [Shahdullah](https://github.com/Shahdullah)
           files: release-apks/*.apk
           draft: false
