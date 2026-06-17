@@ -19,8 +19,9 @@ permissions:
 
 jobs:
   build:
-    name: Build APK
+    name: Build Debug APK
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,18 +35,17 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Grant execute permission for gradlew
+      - name: Grant execute permission
         run: chmod +x gradlew
 
-      # Build flavors are: distribution × device × abi
-      # E.g. FossMobileUniversal, GmsMobileArm64, etc.
-      - name: Build debug APK (Foss / Mobile / Universal)
-        run: ./gradlew assembleFossMobileUniversalDebug --stacktrace
+      # Build GMS / Mobile / Universal debug APK for CI verification
+      - name: Build debug APK
+        run: ./gradlew assembleGmsMobileUniversalDebug --stacktrace
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: nomatune-debug
-          path: app/build/outputs/apk/fossMobileUniversal/debug/*.apk
+          name: NomaTune-debug
+          path: app/build/outputs/apk/gmsMobileUniversal/debug/*.apk
           if-no-files-found: error
           retention-days: 14
