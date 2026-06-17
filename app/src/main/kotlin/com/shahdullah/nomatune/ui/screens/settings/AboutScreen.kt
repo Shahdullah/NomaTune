@@ -339,40 +339,16 @@ fun AboutScreen(
     }
 
     val leadDeveloper = TeamMember(
-        avatarUrl = "https://avatars.githubusercontent.com/u/107134739?v=4",
-        name = "shahdullah「るかもり」",
+        avatarUrl = "https://avatars.githubusercontent.com/u/267626413?v=4",
+        name = "Shahdullah",
         position = stringResource(R.string.about_position_lead_dev),
-        profileUrl = "https://github.com/shahdullah",
-        github = "https://github.com/shahdullah",
-        website = "https://koiiverse.cloud",
+        profileUrl = "https://github.com/Shahdullah",
+        github = "https://github.com/Shahdullah",
+        website = "https://nomatune.vercel.app",
         discord = "https://discord.com/users/886971572668219392"
     )
 
-    val collaborators = listOf(
-        TeamMember(
-            avatarUrl = "https://avatars.githubusercontent.com/u/93458424?v=4",
-            name = "WTTexe",
-            position = stringResource(R.string.about_position_wttexe),
-            profileUrl = "https://github.com/Windowstechtips",
-            github = "https://github.com/Windowstechtips",
-            website = null,
-            discord = "https://discord.com/users/840839409640800258"
-        ),
-        TeamMember(
-            avatarUrl = "https://avatars.githubusercontent.com/u/89002922?v=4",
-            name = "Miko",
-            position = stringResource(R.string.about_position_miko),
-            profileUrl = "https://github.com/mikooochi",
-            github = "https://github.com/mikooochi"
-        ),
-        TeamMember(
-            avatarUrl = "https://avatars.githubusercontent.com/u/80249864?v=4",
-            name = "sang765",
-            position = stringResource(R.string.about_position_sang765),
-            profileUrl = "https://github.com/sang765",
-            github = "https://github.com/sang765"
-        ),
-    )
+    val collaborators = emptyList<TeamMember>()
 
     val respecters = listOf(
         TeamMember(
@@ -437,10 +413,10 @@ fun AboutScreen(
             Image(
                 painter = painterResource(R.drawable.about_splash),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onBackground),
+                colorFilter = ColorFilter.tint(Color(0xFF1A6496)),
                 modifier = Modifier
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .background(Color.Black)
                     .clickable { },
             )
 
