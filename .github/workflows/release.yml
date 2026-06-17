@@ -51,9 +51,12 @@ jobs:
           ABI="${{ matrix.abi }}"
           ABI_CAP="$(tr '[:lower:]' '[:upper:]' <<< "${ABI:0:1}")${ABI:1}"
           DEVICE="${{ matrix.device }}"
-          echo "gradle_task=assembleGms${{ matrix.deviceName }}${ABI_CAP}Release" >> "$GITHUB_OUTPUT"
-          echo "apk_name=app-${DEVICE}-${ABI}-release.apk"  >> "$GITHUB_OUTPUT"
+          DEVICE_CAP="${{ matrix.deviceName }}"
+          echo "gradle_task=assembleGms${DEVICE_CAP}${ABI_CAP}Release" >> "$GITHUB_OUTPUT"
+          echo "apk_name=app-${DEVICE}-${ABI}-release.apk" >> "$GITHUB_OUTPUT"
           echo "artifact_name=app-${DEVICE}-${ABI}-release" >> "$GITHUB_OUTPUT"
+          echo "abi_cap=${ABI_CAP}" >> "$GITHUB_OUTPUT"
+          echo "device_cap=${DEVICE_CAP}" >> "$GITHUB_OUTPUT"
 
       - name: Set up signing keystore
         shell: bash
@@ -79,34 +82,79 @@ jobs:
             echo "KEYSTORE_PASSWORD=nomatune123"  >> "$GITHUB_ENV"
             echo "KEY_ALIAS=nomatune"             >> "$GITHUB_ENV"
             echo "KEY_PASSWORD=nomatune123"       >> "$GITHUB_ENV"
-            echo "::warning::No KEYSTORE secret — APK signed with a temporary key."
+            echo "::warning::No KEYSTORE secret set — APK signed with a temporary key."
           fi
 
       - name: Build APK
-        run: ./gradlew "${{ steps.variant.outputs.gradle_task }}"
+        shell: bash
+        run: |
+          set -euo pipefail
+          GRADLE_TASK="${{ steps.variant.outputs.gradle_task }}"
+          ABI="${{ matrix.abi }}"
+          if [ "$ABI" = "armeabi" ] || [ "$ABI" = "x86" ]; then
+            ./gradlew "$GRADLE_TASK" 2>&1 | python3 -c "import re,sys;p=re.compile(r'^\[CXX5202\]');[sys.stdout.write(l) for l in sys.stdin if not p.match(l.rstrip())]"
+          else
+            ./gradlew "$GRADLE_TASK"
+          fi
         env:
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
           LASTFM_SECRET: ${{ secrets.LASTFM_SECRET }}
           TOGETHER_BEARER_TOKEN: ${{ secrets.TOGETHER_BEARER_TOKEN }}
           CANVAS_BEARER_TOKEN: ${{ secrets.CANVAS_BEARER_TOKEN }}
 
-      - name: Sign and collect APK
+      - name: Resolve release output directory
+        id: release_dir
         shell: bash
         run: |
           set -euo pipefail
+          DEVICE="${{ matrix.device }}"
+          ABI="${{ matrix.abi }}"
+          DEVICE_CAP="${{ steps.variant.outputs.device_cap }}"
+          ABI_CAP="${{ steps.variant.outputs.abi_cap }}"
+          CANDIDATES=(
+            "app/build/outputs/apk/gms${DEVICE_CAP}${ABI_CAP}/release"
+            "app/build/outputs/apk/gms${DEVICE}${ABI_CAP}/release"
+            "app/build/outputs/apk/gms/${DEVICE}/${ABI}/release"
+            "app/build/outputs/apk/gms/${DEVICE}${ABI_CAP}/release"
+            "app/build/outputs/apk/gms/${DEVICE_CAP}${ABI_CAP}/release"
+            "app/build/outputs/apk/${DEVICE}/${ABI}/release"
+            "app/build/outputs/apk/${DEVICE}${ABI_CAP}/release"
+            "app/build/outputs/apk/${DEVICE_CAP}${ABI_CAP}/release"
+          )
+          for d in "${CANDIDATES[@]}"; do
+            if [ -d "$d" ]; then
+              echo "release_dir=$d" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "Could not resolve APK output directory — listing all:"
+          find app/build/outputs/apk -maxdepth 6 -type d || true
+          exit 1
+
+      - name: Sign APK with apksigner (V2/V3 signatures)
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_DIR="${{ steps.release_dir.outputs.release_dir }}"
           APK_NAME="${{ steps.variant.outputs.apk_name }}"
           mkdir -p release-apks
-          RAW="$(find app/build/outputs/apk -type f -name "*.apk" ! -name "*-signed*" | head -n 1)"
+          RAW="$(find "$RELEASE_DIR" -maxdepth 1 -type f -name "*.apk" ! -name "*-signed*" | head -n 1)"
           if [ -z "${RAW:-}" ]; then
-            echo "No APK found:" && find app/build/outputs/apk || true && exit 1
+            echo "No APK found in $RELEASE_DIR:"
+            find app/build/outputs/apk -type f -name "*.apk" || true
+            exit 1
           fi
           echo "Signing: $RAW"
-          "$JAVA_HOME/bin/jarsigner" \
-            -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" \
-            -keypass "$KEY_PASSWORD" \
-            -signedjar "release-apks/${APK_NAME}" \
-            "$RAW" "$KEY_ALIAS"
-          ls -lh release-apks/
+          BUILD_TOOLS="$(ls "$ANDROID_HOME/build-tools/" | sort -V | tail -n 1)"
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner" sign \
+            --ks "$KEYSTORE_PATH" \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --out "release-apks/$APK_NAME" \
+            "$RAW"
+          echo "Signed APK:"
+          ls -lh "release-apks/$APK_NAME"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -121,53 +169,39 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Get version
-        id: version
+        id: ver
         run: |
-          V="$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)"
-          echo "version=$V" >> "$GITHUB_OUTPUT"
+          VER=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag exists
+        id: tag_check
+        run: |
+          if git rev-parse "v${{ steps.ver.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Download all APKs
+        if: steps.tag_check.outputs.exists == 'false'
         uses: actions/download-artifact@v4
         with:
-          path: artifacts/
-
-      - name: Collect APKs
-        run: |
-          mkdir -p release-apks
-          find artifacts -name "*.apk" -exec cp {} release-apks/ \;
-          ls -lh release-apks/
+          pattern: app-*-release
+          merge-multiple: true
+          path: release-apks/
 
       - name: Create GitHub Release
+        if: steps.tag_check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: NomaTune v${{ steps.version.outputs.version }}
-          body: |
-            ## 🎵 NomaTune v${{ steps.version.outputs.version }}
-
-            Material 3 music player — stream YouTube Music ad-free, play local files, and enjoy synced lyrics.
-
-            ### 📥 Download
-
-            | APK | Who it is for |
-            |-----|--------------|
-            | `app-mobile-universal-release.apk` | ✅ **Recommended** — works on all devices |
-            | `app-mobile-arm64-release.apk` | Most modern Android phones (64-bit ARM) |
-            | `app-mobile-armeabi-release.apk` | Older / 32-bit ARM devices |
-            | `app-mobile-x86_64-release.apk` | x86_64 emulators / Chromebooks |
-            | `app-mobile-x86-release.apk` | x86 emulators |
-            | `app-tv-universal-release.apk` | Android TV |
-
-            ### 📲 How to install
-            1. Download the APK (try **universal** first)
-            2. Android Settings → Security → enable **Install unknown apps**
-            3. Tap the downloaded APK to install
-
-            Made with ❤️ by [Shahdullah](https://github.com/Shahdullah)
-          files: release-apks/*.apk
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: NomaTune v${{ steps.ver.outputs.version }}
           draft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          generate_release_notes: true
+          files: release-apks/*.apk
