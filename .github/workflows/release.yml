@@ -7,10 +7,6 @@ on:
     paths:
       - app/build.gradle.kts
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to release (e.g. 1.0.1). Leave blank to use version from build.gradle.kts'
-        required: false
 
 permissions:
   contents: write
@@ -56,10 +52,14 @@ jobs:
           ABI="${{ matrix.abi }}"
           ABI_CAP="$(tr '[:lower:]' '[:upper:]' <<< "${ABI:0:1}")${ABI:1}"
           echo "gradle_task=assemble${{ matrix.distributionName }}${{ matrix.deviceName }}${ABI_CAP}Release" >> "$GITHUB_OUTPUT"
-          if [ "${{ matrix.distribution }}" = "gms" ]; then
-            echo "apk_stem=NomaTune-${{ matrix.device }}-${ABI}" >> "$GITHUB_OUTPUT"
+          DIST="${{ matrix.distribution }}"
+          DEVICE="${{ matrix.device }}"
+          if [ "$DIST" = "gms" ]; then
+            echo "apk_name=app-${DEVICE}-${ABI}-release.apk" >> "$GITHUB_OUTPUT"
+            echo "artifact_name=app-${DEVICE}-${ABI}-release" >> "$GITHUB_OUTPUT"
           else
-            echo "apk_stem=NomaTune-${{ matrix.distribution }}-${{ matrix.device }}-${ABI}" >> "$GITHUB_OUTPUT"
+            echo "apk_name=app-${DIST}-${DEVICE}-${ABI}-release.apk" >> "$GITHUB_OUTPUT"
+            echo "artifact_name=app-${DIST}-${DEVICE}-${ABI}-release" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Set up signing keystore
@@ -97,35 +97,36 @@ jobs:
           TOGETHER_BEARER_TOKEN: ${{ secrets.TOGETHER_BEARER_TOKEN }}
           CANVAS_BEARER_TOKEN: ${{ secrets.CANVAS_BEARER_TOKEN }}
 
-      - name: Find and collect APK
+      - name: Find and sign APK
         shell: bash
         run: |
           set -euo pipefail
           DIST="${{ matrix.distribution }}"
-          STEM="${{ steps.variant.outputs.apk_stem }}"
+          APK_NAME="${{ steps.variant.outputs.apk_name }}"
           mkdir -p release-apks
 
           RAW="$(find app/build/outputs/apk -type f -name "*.apk" ! -name "*-signed*" | head -n 1)"
           if [ -z "${RAW:-}" ]; then
-            echo "No APK found!" && find app/build/outputs/apk || true && exit 1
+            echo "No APK found:" && find app/build/outputs/apk || true && exit 1
           fi
+          echo "Found APK: $RAW"
 
           if [ "$DIST" = "gms" ]; then
             "$JAVA_HOME/bin/jarsigner" \
               -keystore "$KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" \
               -keypass "$KEY_PASSWORD" \
-              -signedjar "release-apks/${STEM}-release.apk" \
+              -signedjar "release-apks/${APK_NAME}" \
               "$RAW" "$KEY_ALIAS"
           else
-            cp "$RAW" "release-apks/${STEM}-release.apk"
+            cp "$RAW" "release-apks/${APK_NAME}"
           fi
-          echo "Built:" && ls -lh release-apks/
+          ls -lh release-apks/
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.variant.outputs.apk_stem }}
-          path: release-apks/${{ steps.variant.outputs.apk_stem }}-release.apk
+          name: ${{ steps.variant.outputs.artifact_name }}
+          path: release-apks/${{ steps.variant.outputs.apk_name }}
 
   release:
     needs: build
@@ -138,10 +139,7 @@ jobs:
       - name: Get version
         id: version
         run: |
-          V="${{ github.event.inputs.version }}"
-          if [ -z "${V:-}" ]; then
-            V="$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)"
-          fi
+          V="$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)"
           echo "version=$V" >> "$GITHUB_OUTPUT"
 
       - name: Download all APKs
@@ -169,13 +167,13 @@ jobs:
 
             | APK | Who it is for |
             |-----|--------------|
-            | `NomaTune-mobile-universal-release.apk` | ✅ **Recommended** — works on all devices |
-            | `NomaTune-mobile-arm64-release.apk` | Most modern Android phones (64-bit ARM) |
-            | `NomaTune-mobile-armeabi-release.apk` | Older / 32-bit ARM devices |
-            | `NomaTune-mobile-x86_64-release.apk` | x86_64 emulators / Chromebooks |
-            | `NomaTune-mobile-x86-release.apk` | x86 emulators |
-            | `NomaTune-foss-mobile-universal-release.apk` | FOSS build (no proprietary deps) |
-            | `NomaTune-izzy-mobile-universal-release.apk` | IzzyOnDroid variant |
+            | `app-mobile-universal-release.apk` | ✅ **Recommended** — works on all devices |
+            | `app-mobile-arm64-release.apk` | Most modern Android phones (64-bit ARM) |
+            | `app-mobile-armeabi-release.apk` | Older / 32-bit ARM devices |
+            | `app-mobile-x86_64-release.apk` | x86_64 emulators / Chromebooks |
+            | `app-mobile-x86-release.apk` | x86 emulators |
+            | `app-foss-mobile-universal-release.apk` | FOSS build (no proprietary deps) |
+            | `app-izzy-mobile-universal-release.apk` | IzzyOnDroid variant |
 
             ### 📲 How to install
             1. Download the APK (try **universal** first)
