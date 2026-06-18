@@ -268,7 +268,7 @@ fun AboutScreen(
                 Spacer(Modifier.width(8.dp))
 
                 IconButton(
-                    onClick = { uriHandler.openUri("https://buymeacoffee.com/freemusic") },
+                    onClick = { uriHandler.openUri("https://buymeachai.in/freemusic") },
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.coffee),
@@ -285,7 +285,7 @@ fun AboutScreen(
             ) {
                 OutlinedButton(
                     onClick = {
-                        uriHandler.openUri("https://buymeacoffee.com/freemusic")
+                        uriHandler.openUri("https://buymeachai.in/freemusic")
                     },
                 ) {
                     Icon(
@@ -351,18 +351,7 @@ fun AboutScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
             )
-
             Spacer(Modifier.height(24.dp))
-
-            SectionHeader(
-
-            Spacer(Modifier.height(24.dp))
-
-            SectionHeader(
-
-            Spacer(Modifier.height(24.dp))
-
-            SectionHeader(
 
             Spacer(Modifier.height(24.dp))
         }
