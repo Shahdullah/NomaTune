@@ -71,6 +71,8 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.request.headers
+import org.json.JSONObject
 
 data class TeamMember(
     val avatarUrl: String,
@@ -82,6 +84,30 @@ data class TeamMember(
     val discord: String? = null
 
 )
+
+@Composable
+private fun OutlinedIconChip(
+    iconRes: Int,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier,
+        shape = CircleShape,
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = contentDescription,
+            modifier = Modifier
+                .padding(8.dp)
+                .size(20.dp),
+        )
+    }
+}
 
 @Composable
 fun OutlinedIconChipMembers(
