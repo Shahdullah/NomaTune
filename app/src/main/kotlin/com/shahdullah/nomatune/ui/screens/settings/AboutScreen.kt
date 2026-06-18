@@ -67,6 +67,10 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import android.widget.Toast
 import androidx.compose.material3.CircularProgressIndicator
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.HttpResponse
 
 data class TeamMember(
     val avatarUrl: String,
@@ -264,7 +268,7 @@ fun AboutScreen(
                 Spacer(Modifier.width(8.dp))
 
                 IconButton(
-                    onClick = { uriHandler.openUri("https://buymeachai.in/freemusic") },
+                    onClick = { uriHandler.openUri("https://buymeacoffee.com/freemusic") },
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.coffee),
@@ -281,7 +285,7 @@ fun AboutScreen(
             ) {
                 OutlinedButton(
                     onClick = {
-                        uriHandler.openUri("https://buymeachai.in/freemusic")
+                        uriHandler.openUri("https://buymeacoffee.com/freemusic")
                     },
                 ) {
                     Icon(
