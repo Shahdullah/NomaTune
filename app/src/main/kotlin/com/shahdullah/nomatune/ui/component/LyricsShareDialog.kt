@@ -212,6 +212,8 @@ fun LyricsShareImageDialog(
                         ),
                     )
                     onDismissRequest()
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Toast.makeText(
                         context,
