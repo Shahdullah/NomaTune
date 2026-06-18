@@ -84,6 +84,7 @@ import coil3.toBitmap
 import com.google.common.collect.ImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import com.shahdullah.nomatune.R
 import com.shahdullah.nomatune.models.MediaMetadata
