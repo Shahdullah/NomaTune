@@ -824,6 +824,8 @@ object Spotify {
                 response.obj("data")?.obj("playlistV2")?.obj("content")
                     ?: throw SpotifyException(500, "No content in fetchPlaylist response")
 
+            val totalCount = content.int("totalCount") ?: 0
+
             val tracks =
                 content.arr("items")?.mapNotNull { elem ->
                     val itemWrapper = elem.jsonObject.obj("itemV2") ?: return@mapNotNull null
@@ -836,12 +838,35 @@ object Spotify {
                     )
                 } ?: emptyList()
 
+            // GQL returned no tracks but the playlist has items — fall back to REST
+            if (tracks.isEmpty() && totalCount > 0) {
+                log("W", "GQL fetchPlaylist returned 0 items for $playlistId (total=$totalCount), falling back to REST")
+                return@runCatching playlistTracksRest(playlistId, limit, offset)
+            }
+
             SpotifyPaging(
                 items = tracks,
-                total = content.int("totalCount") ?: 0,
+                total = totalCount,
                 limit = limit,
                 offset = offset,
             )
+        }
+
+    /**
+     * REST fallback for /playlists/{id}/tracks. Used when the GQL fetchPlaylist
+     * endpoint returns 0 items despite a non-zero totalCount (API structure mismatch).
+     * SpotifyPlaylistTrack and SpotifyTrack are annotated with @SerialName so they
+     * deserialize cleanly from the REST response.
+     */
+    private suspend fun playlistTracksRest(
+        playlistId: String,
+        limit: Int,
+        offset: Int,
+    ): SpotifyPaging<SpotifyPlaylistTrack> =
+        authenticatedGet("playlists/$playlistId/tracks") {
+            parameter("limit", limit.coerceAtMost(50)) // REST max is 100 but keep it safe
+            parameter("offset", offset)
+            parameter("fields", "items(added_at,is_local,track(id,name,uri,is_local,duration_ms,explicit,track_number,popularity,preview_url,artists(id,name,uri),album(id,name,uri,release_date,album_type,artists(id,name,uri),images(url,width,height)))),total,limit,offset,next")
         }
 
     // ── Playlist Mutations (GQL) ──────────────────────────────────────
