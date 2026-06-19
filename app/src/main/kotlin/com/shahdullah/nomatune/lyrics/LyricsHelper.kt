@@ -15,6 +15,8 @@ import com.shahdullah.nomatune.constants.LyricsProviderOrderKey
 import com.shahdullah.nomatune.constants.PreferredLyricsProvider
 import com.shahdullah.nomatune.constants.deserializeLyricsProviderOrder
 import com.shahdullah.nomatune.db.entities.LyricsEntity.Companion.LYRICS_NOT_FOUND
+import com.shahdullah.nomatune.lyrics.LyricsUtils.isLineSyncedLrc
+import com.shahdullah.nomatune.lyrics.LyricsUtils.isTtml
 import com.shahdullah.nomatune.models.MediaMetadata
 import com.shahdullah.nomatune.utils.dataStore
 import com.shahdullah.nomatune.utils.reportException
@@ -153,13 +155,56 @@ constructor(
         if (providers.isEmpty()) return LYRICS_NOT_FOUND
 
         val artist = mediaMetadata.artists.joinToString { it.name }
-        fetchProviderLyrics(providers.first(), mediaMetadata, artist)?.let { lyrics ->
-            return lyrics
+        val firstResult = fetchProviderLyrics(providers.first(), mediaMetadata, artist)
+
+        if (firstResult != null) {
+            // If priority provider returned synced lyrics, use them immediately
+            if (isLineSyncedLrc(firstResult) || isTtml(firstResult)) {
+                return firstResult
+            }
+            // Priority provider returned plain text — keep searching remaining providers
+            // for synced lyrics; fall back to plain text if none found
+            val syncedResult = fetchFirstSyncedLyrics(providers.drop(1), mediaMetadata, artist)
+            return syncedResult ?: firstResult
         }
 
         return fetchFirstMeaningfulLyrics(providers.drop(1), mediaMetadata, artist)
     }
 
+    /**
+     * Runs all providers in parallel and returns the first SYNCED result (LRC/TTML).
+     * Plain-text results are ignored. Returns null if no synced lyrics found.
+     */
+    private suspend fun fetchFirstSyncedLyrics(
+        providers: List<LyricsProvider>,
+        mediaMetadata: MediaMetadata,
+        artist: String,
+    ): String? = supervisorScope {
+        val requests = providers.map { provider ->
+            async(Dispatchers.IO) { fetchProviderLyrics(provider, mediaMetadata, artist) }
+        }
+        if (requests.isEmpty()) return@supervisorScope null
+
+        val pending = requests.toMutableSet()
+        while (pending.isNotEmpty()) {
+            val (request, lyrics) = select<Pair<Deferred<String?>, String?>> {
+                pending.forEach { deferred ->
+                    deferred.onAwait { result -> deferred to result }
+                }
+            }
+            pending.remove(request)
+            if (lyrics != null && (isLineSyncedLrc(lyrics) || isTtml(lyrics))) {
+                pending.forEach { it.cancel() }
+                return@supervisorScope lyrics
+            }
+        }
+        null
+    }
+
+    /**
+     * Runs all providers in parallel. Prefers SYNCED lyrics (LRC/TTML) over plain text.
+     * If synced lyrics are found, returns them immediately. Otherwise returns first plain text.
+     */
     private suspend fun fetchFirstMeaningfulLyrics(
         providers: List<LyricsProvider>,
         mediaMetadata: MediaMetadata,
@@ -175,6 +220,7 @@ constructor(
 
         if (requests.isEmpty()) return@supervisorScope LYRICS_NOT_FOUND
 
+        var plainTextFallback: String? = null
         val pending = requests.toMutableSet()
         while (pending.isNotEmpty()) {
             val (request, lyrics) = select<Pair<Deferred<String?>, String?>> {
@@ -184,12 +230,17 @@ constructor(
             }
             pending.remove(request)
             if (lyrics != null) {
-                pending.forEach { it.cancel() }
-                return@supervisorScope lyrics
+                if (isLineSyncedLrc(lyrics) || isTtml(lyrics)) {
+                    // Synced lyrics found — cancel the rest and use them
+                    pending.forEach { it.cancel() }
+                    return@supervisorScope lyrics
+                }
+                // Plain text — keep as fallback and keep looking for synced
+                if (plainTextFallback == null) plainTextFallback = lyrics
             }
         }
 
-        LYRICS_NOT_FOUND
+        plainTextFallback ?: LYRICS_NOT_FOUND
     }
 
     private suspend fun fetchProviderLyrics(
