@@ -1497,11 +1497,11 @@ class MainActivity : ComponentActivity() {
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                                         // app icon
                                                         Icon(
-                                                            painter = painterResource(R.drawable.about_appbar),
+                                                            painter = painterResource(R.drawable.about_appbar_tight),
                                                             contentDescription = null,
                                                             modifier = Modifier
-                                                                .size(44.dp)
-                                                                .padding(end = 4.dp)
+                                                                .size(28.dp)
+                                                                .padding(end = 6.dp)
                                                         )
                                                         Text(
                                                             text = stringResource(R.string.app_name),
