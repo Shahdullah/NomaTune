@@ -40,13 +40,25 @@ internal fun List<Track>.bestMatchingFor(
 
     if (duration == -1) {
         if (trackName != null && artistName != null) {
-
             return findBestMatch(trackName, artistName)
         }
         return firstOrNull { it.syncedLyrics != null } ?: firstOrNull()
     }
 
-    return minByOrNull { abs(it.duration.toInt() - duration) }
+    // When duration is known, first filter by name similarity (if provided), then break ties by duration
+    val nameCandidates = if (trackName != null && artistName != null) {
+        val normalizedTrackName = trackName.trim().lowercase()
+        val normalizedArtistName = artistName.trim().lowercase()
+        filter { track ->
+            val trackSim = calculateSimilarity(normalizedTrackName, track.trackName.trim().lowercase())
+            val artistSim = calculateSimilarity(normalizedArtistName, track.artistName.trim().lowercase())
+            (trackSim + artistSim) / 2.0 > 0.5
+        }
+    } else this
+
+    // From name-filtered candidates pick closest duration; fall back to full list if none pass name filter
+    val pool = nameCandidates.ifEmpty { this }
+    return pool.minByOrNull { abs(it.duration.toInt() - duration) }
         ?.takeIf { abs(it.duration.toInt() - duration) <= 2 }
 }
 

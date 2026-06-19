@@ -279,7 +279,7 @@ constructor(
     private fun lyricsCacheKey(
         title: String,
         artists: String,
-    ): String = "$artists-$title".replace(" ", "")
+    ): String = "${artists.trim().lowercase()}::${title.trim().lowercase()}"
 
     companion object {
         private const val MAX_CACHE_SIZE = 16

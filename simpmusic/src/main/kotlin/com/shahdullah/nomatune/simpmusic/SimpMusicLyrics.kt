@@ -111,11 +111,13 @@ object SimpMusicLyrics {
 
         sortedTracks.forEach { track ->
             if (count <= 4) {
-                if (track.syncedLyrics != null && abs((track.duration ?: 0) - duration) <= 5) {
+                // Skip duration check when duration is unknown (0 or -1) to avoid filtering all tracks
+                val durationOk = duration <= 0 || abs((track.duration ?: 0) - duration) <= 5
+                if (track.syncedLyrics != null && durationOk) {
                     count++
                     callback(track.syncedLyrics)
                 }
-                if (track.plainLyrics != null && abs((track.duration ?: 0) - duration) <= 5 && plain == 0) {
+                if (track.plainLyrics != null && durationOk && plain == 0) {
                     count++
                     plain++
                     callback(track.plainLyrics)

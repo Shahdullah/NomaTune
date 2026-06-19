@@ -38,7 +38,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -222,8 +221,8 @@ fun AboutScreen(
             Image(
                 painter = painterResource(R.drawable.about_splash),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(Color(0xFF1A6496)),
                 modifier = Modifier
+                    .size(160.dp)
                     .clip(CircleShape)
                     .background(Color.Black)
                     .clickable { },
@@ -294,7 +293,7 @@ fun AboutScreen(
                 Spacer(Modifier.width(8.dp))
 
                 IconButton(
-                    onClick = { uriHandler.openUri("https://buymeachai.in/freemusic") },
+                    onClick = { uriHandler.openUri("https://www.buymeachai.in/NomaTune") },
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.coffee),
@@ -311,7 +310,7 @@ fun AboutScreen(
             ) {
                 OutlinedButton(
                     onClick = {
-                        uriHandler.openUri("https://buymeachai.in/freemusic")
+                        uriHandler.openUri("https://www.buymeachai.in/NomaTune")
                     },
                 ) {
                     Icon(

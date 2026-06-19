@@ -1500,8 +1500,8 @@ class MainActivity : ComponentActivity() {
                                                             painter = painterResource(R.drawable.about_appbar),
                                                             contentDescription = null,
                                                             modifier = Modifier
-                                                                .size(35.dp)
-                                                                .padding(end = 3.dp)
+                                                                .size(44.dp)
+                                                                .padding(end = 4.dp)
                                                         )
                                                         Text(
                                                             text = stringResource(R.string.app_name),
