@@ -70,6 +70,7 @@ import com.shahdullah.nomatune.R
 import com.shahdullah.nomatune.constants.AppBarHeight
 import com.shahdullah.nomatune.constants.ChipSortTypeKey
 import com.shahdullah.nomatune.constants.LibraryFilter
+import com.shahdullah.nomatune.constants.ShowSpotifyPlaylistsKey
 import com.shahdullah.nomatune.utils.rememberEnumPreference
 import com.shahdullah.nomatune.utils.rememberPreference
 
@@ -78,46 +79,56 @@ fun LibraryScreen(navController: NavController) {
     var filterType by rememberEnumPreference(ChipSortTypeKey, LibraryFilter.LIBRARY)
     val database = LocalDatabase.current
     val (selectedTagIds) = rememberPlaylistTagFilterState(database)
+    val (showSpotifyPlaylists) = rememberPreference(ShowSpotifyPlaylistsKey, defaultValue = false)
+
+    // Build filter list dynamically based on Spotify setting
+    val libraryFilters = remember(showSpotifyPlaylists) {
+        if (showSpotifyPlaylists) {
+            listOf(
+                LibraryFilter.LIBRARY,
+                LibraryFilter.PLAYLISTS,
+                LibraryFilter.SPOTIFY,
+                LibraryFilter.SONGS,
+                LibraryFilter.ARTISTS,
+                LibraryFilter.ALBUMS,
+            )
+        } else {
+            listOf(
+                LibraryFilter.LIBRARY,
+                LibraryFilter.PLAYLISTS,
+                LibraryFilter.SONGS,
+                LibraryFilter.ARTISTS,
+                LibraryFilter.ALBUMS,
+            )
+        }
+    }
 
     val pagerState = rememberPagerState(
-        initialPage = remember {
-            when (filterType) {
-                LibraryFilter.LIBRARY -> 0
-                LibraryFilter.PLAYLISTS -> 1
-                LibraryFilter.SONGS -> 2
-                LibraryFilter.ARTISTS -> 3
-                LibraryFilter.ALBUMS -> 4
-                else -> 0
-            }
+        initialPage = remember(showSpotifyPlaylists) {
+            val idx = libraryFilters.indexOf(filterType)
+            if (idx < 0) 0 else idx
         }
-    ) { 5 }
+    ) { libraryFilters.size }
 
-    val currentFilter = when (pagerState.currentPage) {
-        0 -> LibraryFilter.LIBRARY
-        1 -> LibraryFilter.PLAYLISTS
-        2 -> LibraryFilter.SONGS
-        3 -> LibraryFilter.ARTISTS
-        4 -> LibraryFilter.ALBUMS
-        else -> LibraryFilter.LIBRARY
-    }
+    val currentFilter = libraryFilters.getOrElse(pagerState.currentPage) { LibraryFilter.LIBRARY }
 
     // Dynamic header content based on selection
     val headerTitle = when (currentFilter) {
         LibraryFilter.LIBRARY -> stringResource(R.string.library_title)
         LibraryFilter.PLAYLISTS -> stringResource(R.string.playlists)
+        LibraryFilter.SPOTIFY -> stringResource(R.string.spotify_account)
         LibraryFilter.SONGS -> stringResource(R.string.songs)
         LibraryFilter.ARTISTS -> stringResource(R.string.artists)
         LibraryFilter.ALBUMS -> stringResource(R.string.albums)
-        else -> stringResource(R.string.library_title)
     }
 
     val headerSubtitle = when (currentFilter) {
         LibraryFilter.LIBRARY -> stringResource(R.string.library_subtitle)
         LibraryFilter.PLAYLISTS -> stringResource(R.string.library_playlists_subtitle)
+        LibraryFilter.SPOTIFY -> stringResource(R.string.library_spotify_subtitle)
         LibraryFilter.SONGS -> stringResource(R.string.library_songs_subtitle)
         LibraryFilter.ARTISTS -> stringResource(R.string.library_artists_subtitle)
         LibraryFilter.ALBUMS -> stringResource(R.string.library_albums_subtitle)
-        else -> stringResource(R.string.library_subtitle)
     }
 
     val density = LocalDensity.current
@@ -212,14 +223,7 @@ fun LibraryScreen(navController: NavController) {
             // Sync Pager -> Preference & lazy list centering
             LaunchedEffect(pagerState.currentPage) {
                 headerOffsetPx = 0f
-                val targetFilter = when (pagerState.currentPage) {
-                    0 -> LibraryFilter.LIBRARY
-                    1 -> LibraryFilter.PLAYLISTS
-                    2 -> LibraryFilter.SONGS
-                    3 -> LibraryFilter.ARTISTS
-                    4 -> LibraryFilter.ALBUMS
-                    else -> LibraryFilter.LIBRARY
-                }
+                val targetFilter = libraryFilters.getOrElse(pagerState.currentPage) { LibraryFilter.LIBRARY }
                 if (filterType != targetFilter) {
                     filterType = targetFilter
                 }
@@ -228,15 +232,15 @@ fun LibraryScreen(navController: NavController) {
                 val tabWidth = when (targetFilter) {
                     LibraryFilter.LIBRARY -> 116.dp
                     LibraryFilter.PLAYLISTS -> 132.dp
+                    LibraryFilter.SPOTIFY -> 128.dp
                     LibraryFilter.SONGS -> 102.dp
                     LibraryFilter.ARTISTS -> 116.dp
                     LibraryFilter.ALBUMS -> 110.dp
-                    else -> 116.dp
                 }
                 val screenWidth = configuration.screenWidthDp.dp
                 val targetOffsetDp = (screenWidth - tabWidth) / 2
                 val targetOffsetPx = with(density) { targetOffsetDp.roundToPx() }
-                
+
                 tabListState.animateScrollToItem(pagerState.currentPage, scrollOffset = -targetOffsetPx)
             }
 
@@ -274,14 +278,31 @@ fun LibraryScreen(navController: NavController) {
                         }
                     )
                 }
+                if (showSpotifyPlaylists) {
+                    item {
+                        ExpressiveTabChip(
+                            label = stringResource(R.string.spotify_account),
+                            iconRes = R.drawable.spotify_icon,
+                            selected = pagerState.currentPage == 2,
+                            onClick = {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(2)
+                                }
+                            }
+                        )
+                    }
+                }
+                val songsPage = if (showSpotifyPlaylists) 3 else 2
+                val artistsPage = if (showSpotifyPlaylists) 4 else 3
+                val albumsPage = if (showSpotifyPlaylists) 5 else 4
                 item {
                     ExpressiveTabChip(
                         label = stringResource(R.string.songs),
                         iconRes = R.drawable.music_note,
-                        selected = pagerState.currentPage == 2,
+                        selected = pagerState.currentPage == songsPage,
                         onClick = {
                             coroutineScope.launch {
-                                pagerState.animateScrollToPage(2)
+                                pagerState.animateScrollToPage(songsPage)
                             }
                         }
                     )
@@ -290,10 +311,10 @@ fun LibraryScreen(navController: NavController) {
                     ExpressiveTabChip(
                         label = stringResource(R.string.artists),
                         iconRes = R.drawable.person,
-                        selected = pagerState.currentPage == 3,
+                        selected = pagerState.currentPage == artistsPage,
                         onClick = {
                             coroutineScope.launch {
-                                pagerState.animateScrollToPage(3)
+                                pagerState.animateScrollToPage(artistsPage)
                             }
                         }
                     )
@@ -302,10 +323,10 @@ fun LibraryScreen(navController: NavController) {
                     ExpressiveTabChip(
                         label = stringResource(R.string.albums),
                         iconRes = R.drawable.album,
-                        selected = pagerState.currentPage == 4,
+                        selected = pagerState.currentPage == albumsPage,
                         onClick = {
                             coroutineScope.launch {
-                                pagerState.animateScrollToPage(4)
+                                pagerState.animateScrollToPage(albumsPage)
                             }
                         }
                     )
@@ -320,35 +341,32 @@ fun LibraryScreen(navController: NavController) {
                     .weight(1f)
                     .fillMaxWidth()
             ) { page ->
-                when (page) {
-                    0 -> {
+                val filter = libraryFilters.getOrElse(page) { LibraryFilter.LIBRARY }
+                when (filter) {
+                    LibraryFilter.LIBRARY -> {
                         LibraryMixScreen(
                             navController = navController,
                             filterContent = {},
                             selectedTagIds = selectedTagIds,
                             onTabSelected = { targetFilter ->
                                 coroutineScope.launch {
-                                    val targetPage = when (targetFilter) {
-                                        LibraryFilter.LIBRARY -> 0
-                                        LibraryFilter.PLAYLISTS -> 1
-                                        LibraryFilter.SONGS -> 2
-                                        LibraryFilter.ARTISTS -> 3
-                                        LibraryFilter.ALBUMS -> 4
-                                        else -> 0
-                                    }
+                                    val targetPage = libraryFilters.indexOf(targetFilter).coerceAtLeast(0)
                                     pagerState.animateScrollToPage(targetPage)
                                 }
                             }
                         )
                     }
-                    1 -> {
+                    LibraryFilter.PLAYLISTS -> {
                         LibraryPlaylistsScreen(
                             navController = navController,
                             filterContent = {},
                             selectedTagIds = selectedTagIds
                         )
                     }
-                    2 -> {
+                    LibraryFilter.SPOTIFY -> {
+                        LibrarySpotifyPlaylistsScreen(navController = navController)
+                    }
+                    LibraryFilter.SONGS -> {
                         LibrarySongsScreen(
                             navController = navController,
                             onDeselect = {
@@ -358,7 +376,7 @@ fun LibraryScreen(navController: NavController) {
                             }
                         )
                     }
-                    3 -> {
+                    LibraryFilter.ARTISTS -> {
                         LibraryArtistsScreen(
                             navController = navController,
                             onDeselect = {
@@ -368,7 +386,7 @@ fun LibraryScreen(navController: NavController) {
                             }
                         )
                     }
-                    4 -> {
+                    LibraryFilter.ALBUMS -> {
                         LibraryAlbumsScreen(
                             navController = navController,
                             onDeselect = {
@@ -454,4 +472,3 @@ fun ExpressiveTabChip(
         )
     }
 }
-

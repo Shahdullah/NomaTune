@@ -41,31 +41,88 @@ class NewsRepository @Inject constructor() {
     @Volatile private var metadataCache: List<NewsItem>? = null
 
     suspend fun fetchNews(): List<NewsItem> {
-        val response = client.get(METADATA_URL) {
-            headers {
-                append(HttpHeaders.CacheControl, "no-cache, no-store, must-revalidate")
-                append(HttpHeaders.Pragma, "no-cache")
-                append(HttpHeaders.Expires, "0")
+        return try {
+            val response = client.get(METADATA_URL) {
+                headers {
+                    append(HttpHeaders.CacheControl, "no-cache, no-store, must-revalidate")
+                    append(HttpHeaders.Pragma, "no-cache")
+                    append(HttpHeaders.Expires, "0")
+                }
             }
+            val text = response.bodyAsText()
+            val items = json.decodeFromString<List<NewsItem>>(text)
+            metadataCache = items
+            items
+        } catch (e: Exception) {
+            // Return static fallback news when the remote feed is unavailable
+            val fallback = buildFallbackNews()
+            metadataCache = fallback
+            fallback
         }
-        val text = response.bodyAsText()
-        val items = json.decodeFromString<List<NewsItem>>(text)
-        metadataCache = items
-        return items
     }
 
     suspend fun fetchNewsContent(id: String): String {
-        val response = client.get("$CONTENT_BASE_URL$id") {
-            headers {
-                append(HttpHeaders.CacheControl, "no-cache, no-store, must-revalidate")
-                append(HttpHeaders.Pragma, "no-cache")
-                append(HttpHeaders.Expires, "0")
+        return try {
+            val response = client.get("$CONTENT_BASE_URL$id") {
+                headers {
+                    append(HttpHeaders.CacheControl, "no-cache, no-store, must-revalidate")
+                    append(HttpHeaders.Pragma, "no-cache")
+                    append(HttpHeaders.Expires, "0")
+                }
             }
+            response.bodyAsText()
+        } catch (e: Exception) {
+            getFallbackContent(id)
         }
-        return response.bodyAsText()
     }
 
     fun getCachedItem(id: String): NewsItem? = metadataCache?.find { it.id == id }
+
+    private fun buildFallbackNews(): List<NewsItem> = listOf(
+        NewsItem(
+            id = "dev_holiday_2026",
+            title = "Development Pause — Developer on Holiday",
+            description = "Development will be paused for a few weeks because the developer (Shahdullah) is on holiday. NomaTune will be back with new updates soon. Thank you for your patience and continued support!",
+            author = "Shahdullah",
+            timestamp = 1750809600L, // 2026-06-25
+            important = true,
+            imageUrls = emptyList(),
+        ),
+        NewsItem(
+            id = "nomatune_intro_2026",
+            title = "Welcome to NomaTune",
+            description = "NomaTune is a modern Material 3 Expressive music player with YouTube Music integration, Spotify playlist sync, local file playback, synced lyrics, offline downloads, and much more. Built by Shahdullah.",
+            author = "Shahdullah",
+            timestamp = 1748131200L, // 2026-05-25
+            important = false,
+            imageUrls = emptyList(),
+        ),
+    )
+
+    private fun getFallbackContent(id: String): String = when (id) {
+        "dev_holiday_2026" -> """
+# Development Pause
+
+The developer (**Shahdullah**) is currently on holiday for a few weeks.
+
+## What this means
+
+- No new releases during this period
+- Bug reports are still accepted via GitHub Issues
+- The app continues to work normally — this only affects new updates
+
+## When will development resume?
+
+Development is expected to resume in a few weeks. Follow the GitHub repository for updates:
+
+👉 **[github.com/Shahdullah/NomaTune](https://github.com/Shahdullah/NomaTune)**
+
+Thank you for using NomaTune and for your patience!
+
+— Shahdullah
+        """.trimIndent()
+        else -> "No content available for this article."
+    }
 
     private companion object {
         const val METADATA_URL =

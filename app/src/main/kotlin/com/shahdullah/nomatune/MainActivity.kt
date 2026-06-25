@@ -205,6 +205,7 @@ import com.shahdullah.nomatune.constants.RemindAfterKey
 import com.shahdullah.nomatune.constants.SYSTEM_DEFAULT
 import com.shahdullah.nomatune.constants.SearchSource
 import com.shahdullah.nomatune.constants.SearchSourceKey
+import com.shahdullah.nomatune.constants.NomaTuneOnboardingCompletedKey
 import com.shahdullah.nomatune.constants.StopMusicOnTaskClearKey
 import com.shahdullah.nomatune.constants.UseSystemFontKey
 import com.shahdullah.nomatune.db.MusicDatabase
@@ -806,6 +807,10 @@ class MainActivity : ComponentActivity() {
                         remember {
                             intent?.action == ACTION_MUSIC_RECOGNITION
                         }
+
+                    val onboardingCompleted = remember {
+                        PreferenceStore.get(NomaTuneOnboardingCompletedKey) ?: false
+                    }
 
                     val topLevelScreens = remember(navigationItems) {
                         navigationItems.map(Screens::route) + "settings"
@@ -1912,10 +1917,10 @@ class MainActivity : ComponentActivity() {
 
                                 NavHost(
                                     navController = navController,
-                                    startDestination = if (launchMusicRecognitionFromShortcut) {
-                                        MusicRecognitionRoute
-                                    } else {
-                                        when (tabOpenedFromShortcut ?: defaultOpenTab) {
+                                    startDestination = when {
+                                        launchMusicRecognitionFromShortcut -> MusicRecognitionRoute
+                                        !onboardingCompleted -> "welcome"
+                                        else -> when (tabOpenedFromShortcut ?: defaultOpenTab) {
                                             NavigationTab.HOME -> Screens.Home.route
                                             NavigationTab.LIBRARY -> Screens.Library.route
                                             else -> Screens.Home.route

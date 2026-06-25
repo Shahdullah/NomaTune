@@ -477,4 +477,7 @@ fun NavGraphBuilder.navigationBuilder(
             startUrl = backStackEntry.arguments?.getString(LOGIN_URL_ARGUMENT)?.let(Uri::decode)
         )
     }
+    composable("welcome") {
+        WelcomeScreen(navController)
+    }
 }
