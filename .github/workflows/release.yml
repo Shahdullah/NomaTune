@@ -1,0 +1,207 @@
+name: Release NomaTune
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - app/build.gradle.kts
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.device }}-${{ matrix.abi }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { device: mobile, deviceName: Mobile, abi: universal }
+          - { device: mobile, deviceName: Mobile, abi: arm64    }
+          - { device: mobile, deviceName: Mobile, abi: armeabi  }
+          - { device: mobile, deviceName: Mobile, abi: x86_64   }
+          - { device: mobile, deviceName: Mobile, abi: x86      }
+          - { device: tv,     deviceName: Tv,     abi: universal }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - name: Set Up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-cleanup: on-success
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Resolve variant names
+        id: variant
+        shell: bash
+        run: |
+          set -euo pipefail
+          ABI="${{ matrix.abi }}"
+          ABI_CAP="$(tr '[:lower:]' '[:upper:]' <<< "${ABI:0:1}")${ABI:1}"
+          DEVICE="${{ matrix.device }}"
+          DEVICE_CAP="${{ matrix.deviceName }}"
+          echo "gradle_task=assembleGms${DEVICE_CAP}${ABI_CAP}Release" >> "$GITHUB_OUTPUT"
+          echo "apk_name=app-${DEVICE}-${ABI}-release.apk" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=app-${DEVICE}-${ABI}-release" >> "$GITHUB_OUTPUT"
+          echo "abi_cap=${ABI_CAP}" >> "$GITHUB_OUTPUT"
+          echo "device_cap=${DEVICE_CAP}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up signing keystore
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "${KEYSTORE_B64:-}" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > /tmp/release.jks
+            echo "KEYSTORE_PATH=/tmp/release.jks"        >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"  >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$KEY_ALIAS"                  >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"            >> "$GITHUB_ENV"
+          else
+            keytool -genkeypair -v \
+              -keystore /tmp/release.jks -alias nomatune \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=NomaTune,O=Shahdullah,C=US" \
+              -storepass nomatune123 -keypass nomatune123 2>/dev/null
+            echo "KEYSTORE_PATH=/tmp/release.jks" >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=nomatune123"  >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=nomatune"             >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=nomatune123"       >> "$GITHUB_ENV"
+            echo "::warning::No KEYSTORE secret set — APK signed with a temporary key."
+          fi
+
+      - name: Build APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          GRADLE_TASK="${{ steps.variant.outputs.gradle_task }}"
+          ABI="${{ matrix.abi }}"
+          if [ "$ABI" = "armeabi" ] || [ "$ABI" = "x86" ]; then
+            ./gradlew "$GRADLE_TASK" 2>&1 | python3 -c "import re,sys;p=re.compile(r'^\[CXX5202\]');[sys.stdout.write(l) for l in sys.stdin if not p.match(l.rstrip())]"
+          else
+            ./gradlew "$GRADLE_TASK"
+          fi
+        env:
+          LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+          LASTFM_SECRET: ${{ secrets.LASTFM_SECRET }}
+          TOGETHER_BEARER_TOKEN: ${{ secrets.TOGETHER_BEARER_TOKEN }}
+          CANVAS_BEARER_TOKEN: ${{ secrets.CANVAS_BEARER_TOKEN }}
+
+      - name: Resolve release output directory
+        id: release_dir
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEVICE="${{ matrix.device }}"
+          ABI="${{ matrix.abi }}"
+          DEVICE_CAP="${{ steps.variant.outputs.device_cap }}"
+          ABI_CAP="${{ steps.variant.outputs.abi_cap }}"
+          CANDIDATES=(
+            "app/build/outputs/apk/gms${DEVICE_CAP}${ABI_CAP}/release"
+            "app/build/outputs/apk/gms${DEVICE}${ABI_CAP}/release"
+            "app/build/outputs/apk/gms/${DEVICE}/${ABI}/release"
+            "app/build/outputs/apk/gms/${DEVICE}${ABI_CAP}/release"
+            "app/build/outputs/apk/gms/${DEVICE_CAP}${ABI_CAP}/release"
+            "app/build/outputs/apk/${DEVICE}/${ABI}/release"
+            "app/build/outputs/apk/${DEVICE}${ABI_CAP}/release"
+            "app/build/outputs/apk/${DEVICE_CAP}${ABI_CAP}/release"
+          )
+          for d in "${CANDIDATES[@]}"; do
+            if [ -d "$d" ]; then
+              echo "release_dir=$d" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "Could not resolve APK output directory — listing all:"
+          find app/build/outputs/apk -maxdepth 6 -type d || true
+          exit 1
+
+      - name: Sign APK with apksigner (V2/V3 signatures)
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_DIR="${{ steps.release_dir.outputs.release_dir }}"
+          APK_NAME="${{ steps.variant.outputs.apk_name }}"
+          mkdir -p release-apks
+          RAW="$(find "$RELEASE_DIR" -maxdepth 1 -type f -name "*.apk" ! -name "*-signed*" | head -n 1)"
+          if [ -z "${RAW:-}" ]; then
+            echo "No APK found in $RELEASE_DIR:"
+            find app/build/outputs/apk -type f -name "*.apk" || true
+            exit 1
+          fi
+          echo "Signing: $RAW"
+          BUILD_TOOLS="$(ls "$ANDROID_HOME/build-tools/" | sort -V | tail -n 1)"
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner" sign \
+            --ks "$KEYSTORE_PATH" \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --out "release-apks/$APK_NAME" \
+            "$RAW"
+          echo "Signed APK:"
+          ls -lh "release-apks/$APK_NAME"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.variant.outputs.artifact_name }}
+          path: release-apks/${{ steps.variant.outputs.apk_name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: ver
+        run: |
+          VER=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag exists
+        id: tag_check
+        run: |
+          if git rev-parse "v${{ steps.ver.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download all APKs
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: app-*-release
+          merge-multiple: true
+          path: release-apks/
+
+      - name: Create GitHub Release
+        if: steps.tag_check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: NomaTune v${{ steps.ver.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: release-apks/*.apk
