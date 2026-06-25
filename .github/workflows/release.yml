@@ -203,5 +203,6 @@ jobs:
           name: NomaTune v${{ steps.ver.outputs.version }}
           draft: false
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: false
+          body: |
           files: release-apks/*.apk
