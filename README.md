@@ -8,11 +8,60 @@
 
 **Stream. Save. Loop. Repeat.**
 
+A modern Android music player with YouTube Music integration, local file playback, synced lyrics, offline downloads, and a clean Material 3 Expressive interface.
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPL_v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Platform](https://img.shields.io/badge/platform-Android-green.svg)](https://www.android.com)
+[![GitHub release](https://img.shields.io/github/v/release/Shahdullah/NomaTune?color=orange)](https://github.com/Shahdullah/NomaTune/releases)
+[![GitHub stars](https://img.shields.io/github/stars/Shahdullah/NomaTune?style=social)](https://github.com/Shahdullah/NomaTune/stargazers)
+
+[**📥 Download**](https://github.com/Shahdullah/NomaTune/releases/latest) • [**🌐 Website**](https://nomatune.vercel.app) • [**🐛 Report Bug**](https://github.com/Shahdullah/NomaTune/issues)
+
 </div>
 
 ---
 
-## Screenshots
+## ✨ Features
+
+### 🎧 Playback
+- Ad-free streaming with background listening
+- Multiple account support with quick switching
+- Local file & playlist support
+- Fast startup, lightweight performance
+- EBU R128 loudness normalization
+- Tempo, pitch, and playback speed controls
+- Crossfade between tracks
+- System equalizer & spatial audio
+
+### 🎤 Lyrics & Discovery
+- Live synced lyrics
+- AI translation & romanization
+- Music recognition (Shazam-style)
+- Real-time listening statistics
+- Import playlists from Spotify
+- YouTube Music account sync
+- Last.fm scrobbling
+- ListenBrainz history sync
+- Discord rich presence
+
+### 🎨 Design
+- Material 3 Expressive design language
+- Album-art powered dynamic colors
+- 9 different player styles
+- 8 different player background styles
+- Responsive layouts for any screen
+- Clean browsing, player, artist, album, and lyrics views
+
+### ⚙️ Customization
+- Deep playback & interface settings
+- Dynamic color theming
+- Gesture customization
+- Animation & layout tuning
+- Flexible controls
+
+---
+
+## 📱 Screenshots
 
 <p align="center">
   <img src="screenshots/WhatsApp_Image_2026-06-25_at_2.53.36_PM_1782380732375.jpeg" width="22%" alt="Home Screen" />
@@ -29,74 +78,103 @@
 
 ---
 
-## Features
+## 📥 Installation
 
-- 🎵 **YouTube Music** — Full streaming, search, and browsing
-- 🟢 **Spotify Playlists** — Sync and browse your Spotify playlists directly in Library
-- 📁 **Local Files** — Play music from your device storage
-- ⬇️ **Downloads** — Save songs for offline listening
-- 🎤 **Synced Lyrics** — Real-time lyrics display
-- 🎨 **Material 3 Expressive** — Dynamic colour theming, expressive animations
-- 🎙️ **Music Recognition** — Identify songs playing around you
-- 📻 **Smart Radio** — Auto-generated artist and song radio
-- 🕒 **Stats & History** — Track your listening habits
-- 🎮 **Discord Rich Presence** — Show what you're listening to
-- 📡 **Last.fm Scrobbling** — Sync your listening history
-- 📰 **News Feed** — NomaTune updates and announcements
-- 🤝 **NomaTune Together** — Listen in sync with friends
-- 🌙 **Pure Black** — AMOLED-friendly dark mode
-- 🔤 **Custom Fonts** — Choose your preferred font
-- 📺 **Android TV** — Big screen support
-- 🚀 **Welcome Onboarding** — Beautiful first-launch experience
+### 🔽 Direct APK
+1. Go to [Releases](https://github.com/Shahdullah/NomaTune/releases/latest)
+2. Download the latest `nomatune-foss-release.apk` (for FOSS users) or `nomatune-gms-release.apk` (with Google services)
+3. Install on your Android device (enable "Install from unknown sources")
+
+### 📦 Coming Soon
+- F-Droid
+- IzzyOnDroid
+- Obtainium
 
 ---
 
-## Download
+## 🛠️ Building from Source
 
-Get the latest release from [GitHub Releases](https://github.com/Shahdullah/NomaTune/releases).
+### Requirements
+- Android Studio Ladybug or newer
+- JDK 21
+- Android SDK 37
 
----
-
-## Requirements
-
-- Android 8.0+ (API 26+)
-- Internet connection for streaming
-
----
-
-## Tech Stack
-
-| Area | Technology |
-|---|---|
-| UI | Jetpack Compose · Material 3 Expressive |
-| Language | Kotlin |
-| Architecture | MVVM + Hilt |
-| Database | Room |
-| Networking | Ktor |
-| Media | Media3 (ExoPlayer) |
-| Images | Coil 3 |
-
----
-
-## Building
-
+### Steps
 ```bash
+# Clone the repo
 git clone https://github.com/Shahdullah/NomaTune.git
 cd NomaTune
-./gradlew assembleRelease
+
+# Build debug APK
+./gradlew assembleFossDebug
+
+# Build release APK (requires signing key)
+./gradlew assembleFossRelease
+```
+
+The APK will be at `app/build/outputs/apk/foss/debug/`.
+
+### Build Variants
+- `foss` — FOSS build (no Google services, F-Droid friendly)
+- `gms` — Build with Google services (for Play Store)
+- `izzy` — Build for IzzyOnDroid
+
+---
+
+## 🚀 Auto-Release via GitHub Actions
+
+Push a tag like `v1.0.0` and GitHub Actions will automatically:
+1. Build both `foss` and `gms` release APKs
+2. Create a GitHub Release
+3. Attach the APKs as downloadable assets
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+### 🔐 Signing Setup (Optional)
+For signed releases, add these GitHub Secrets to your repo:
+- `KEYSTORE_BASE64` — base64-encoded keystore file
+- `KEYSTORE_PASSWORD` — keystore password
+- `KEY_ALIAS` — key alias
+- `KEY_PASSWORD` — key password
+
+Generate a keystore:
+```bash
+keytool -genkey -v -keystore nomatune.jks -keyalg RSA -keysize 2048 -validity 10000 -alias nomatune
+base64 nomatune.jks > nomatune.jks.base64
 ```
 
 ---
 
-## License
+## 🤝 Contributing
 
-NomaTune is licensed under the **GNU General Public License v3.0**.  
-© 2026 Shahdullah — [github.com/Shahdullah](https://github.com/Shahdullah)
-
-Do not remove or alter the copyright notice. Per GPL-3.0 Section 4 & Section 5.
+Contributions, issues, and feature requests are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
-## Contributing
+## 📜 License
 
-Contributions are welcome! Please open an issue or pull request on [GitHub](https://github.com/Shahdullah/NomaTune).
+```
+NomaTune is licensed under the GNU General Public License v3.0
+You may copy, modify, and distribute this software under the terms of the GPL-3.0.
+See LICENSE for the full license text.
+```
+
+---
+
+## 👤 Author
+
+**Shahdullah**
+- GitHub: [@Shahdullah](https://github.com/Shahdullah)
+
+---
+
+<div align="center">
+
+**Made with ❤️ and 🎵**
+
+⭐ Star this repo if you find it useful!
+
+</div>
