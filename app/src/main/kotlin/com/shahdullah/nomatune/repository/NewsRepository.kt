@@ -13,6 +13,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.headers
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
+import io.ktor.http.isSuccess
 import kotlinx.serialization.json.Json
 import com.shahdullah.nomatune.models.NewsItem
 import java.util.concurrent.TimeUnit
@@ -49,12 +50,18 @@ class NewsRepository @Inject constructor() {
                     append(HttpHeaders.Expires, "0")
                 }
             }
+            if (!response.status.isSuccess()) {
+                // Server returned 4xx/5xx — use fallback without attempting JSON parse
+                val fallback = buildFallbackNews()
+                metadataCache = fallback
+                return fallback
+            }
             val text = response.bodyAsText()
             val items = json.decodeFromString<List<NewsItem>>(text)
             metadataCache = items
             items
         } catch (e: Exception) {
-            // Return static fallback news when the remote feed is unavailable
+            // Network failure or JSON parsing error — use fallback
             val fallback = buildFallbackNews()
             metadataCache = fallback
             fallback
@@ -70,6 +77,7 @@ class NewsRepository @Inject constructor() {
                     append(HttpHeaders.Expires, "0")
                 }
             }
+            if (!response.status.isSuccess()) return getFallbackContent(id)
             response.bodyAsText()
         } catch (e: Exception) {
             getFallbackContent(id)
