@@ -1,6 +1,6 @@
 /*
- * ArchiveTune (2026)
- * © Rukamori — github.com/rukamori
+ * NomaTune (2026)
+ * © Shahdullah — github.com/Shahdullah
  * GPL-3.0 License | Contributors: see git history
  * Do not remove or alter this notice. - Per GPL-3.0 Section 4 & Section 5
  */
@@ -429,19 +429,19 @@ class AboutViewModel
                             id = "github",
                             iconResId = R.drawable.github,
                             labelResId = R.string.about_content_desc_github,
-                            url = "https://github.com/ArchiveTuneApp/ArchiveTune",
+                            url = "https://github.com/Shahdullah/NomaTune",
                         ),
                         AboutLinkUiModel(
                             id = "website",
                             iconResId = R.drawable.website,
                             labelResId = R.string.about_content_desc_website,
-                            url = "https://archivetune.koiiverse.cloud",
+                            url = "https://nomatune.vercel.app",
                         ),
                         AboutLinkUiModel(
                             id = "telegram",
                             iconResId = R.drawable.telegram,
                             labelResId = R.string.about_content_desc_telegram,
-                            url = "https://t.me/ArchiveTuneGC",
+                            url = "https://discord.gg/XF2fpb9rTq",
                         ),
                         AboutLinkUiModel(
                             id = "donate",
@@ -459,7 +459,7 @@ class AboutViewModel
                             id = "privacy_policy",
                             iconResId = R.drawable.lock,
                             labelResId = R.string.privacy,
-                            url = "https://archivetune.koiiverse.cloud/privacy",
+                            url = "https://nomatune.vercel.app/privacy",
                         ),
                     ),
                 leadDeveloper =
@@ -647,6 +647,6 @@ class AboutViewModel
         private companion object {
             const val MaxDisplayedContributors = 20
             const val DebugBuildBadge = "DEBUG"
-            const val ContributorsReadMoreUrl = "https://github.com/ArchiveTuneApp/ArchiveTune/graphs/contributors"
+            const val ContributorsReadMoreUrl = "https://github.com/Shahdullah/NomaTune/graphs/contributors"
         }
     }

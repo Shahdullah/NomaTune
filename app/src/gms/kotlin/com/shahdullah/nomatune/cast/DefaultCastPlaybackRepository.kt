@@ -1,6 +1,6 @@
 /*
- * ArchiveTune (2026)
- * © Rukamori — github.com/Shahdullah
+ * NomaTune (2026)
+ * © Shahdullah — github.com/Shahdullah
  * GPL-3.0 License | Contributors: see git history
  * Do not remove or alter this notice. - Per GPL-3.0 Section 4 & Section 5
  */
@@ -462,7 +462,7 @@ private class LocalCastMediaServer(
                 connectTimeout = REMOTE_CONNECT_TIMEOUT_MS
                 readTimeout = REMOTE_READ_TIMEOUT_MS
                 instanceFollowRedirects = true
-                setRequestProperty("User-Agent", "ArchiveTune Cast")
+                setRequestProperty("User-Agent", "NomaTune Cast")
                 rangeHeader?.let { setRequestProperty(HttpHeaders.Range, it) }
             }
         return runCatching {

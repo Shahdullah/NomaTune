@@ -1,6 +1,6 @@
 /*
- * ArchiveTune (2026)
- * © Rukamori — github.com/Shahdullah
+ * NomaTune (2026)
+ * © Shahdullah — github.com/Shahdullah
  * GPL-3.0 License | Contributors: see git history
  * Do not remove or alter this notice. - Per GPL-3.0 Section 4 & Section 5
  */
@@ -137,7 +137,7 @@ class BuildOnboardingUiStateUseCase
                         titleResId = R.string.support_development_star,
                         descriptionResId = R.string.onboarding_community_github_desc,
                         iconResId = R.drawable.github,
-                        url = "https://github.com/ArchiveTuneApp/ArchiveTune",
+                        url = "https://github.com/Shahdullah/NomaTune",
                     ),
                     OnboardingCommunityActionUiModel(
                         id = "discord",
@@ -145,13 +145,6 @@ class BuildOnboardingUiStateUseCase
                         descriptionResId = R.string.onboarding_community_telegram_desc,
                         iconResId = R.drawable.discord,
                         url = "https://discord.gg/XF2fpb9rTq",
-                    ),
-                    OnboardingCommunityActionUiModel(
-                        id = "telegram",
-                        titleResId = R.string.onboarding_community_telegram_title,
-                        descriptionResId = R.string.onboarding_community_telegram_desc,
-                        iconResId = R.drawable.telegram,
-                        url = "https://t.me/ArchiveTuneGC",
                     ),
                     OnboardingCommunityActionUiModel(
                         id = "donate",

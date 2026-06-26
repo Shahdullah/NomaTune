@@ -66,7 +66,7 @@ private fun ListeningInsightsContent(context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 GlanceTheme.colors
             } else {
-                ArchiveTuneWidgetColors.providers
+                NomaTuneWidgetColors.providers
             },
     ) {
         val palette = rememberWidgetPalette(playbackState.dominantColor)
@@ -80,7 +80,7 @@ private fun ListeningInsightsContent(context: Context) {
                     .background(palette.surface)
                     .cornerRadius(30.dp)
                     .padding(if (compact) 10.dp else 14.dp)
-                    .clickable(openArchiveTuneAction(context)),
+                    .clickable(openNomaTuneAction(context)),
         ) {
             if (compact) {
                 ListeningInsightsCompact(
