@@ -272,6 +272,7 @@ class MusicService :
     PlaybackStatsListener.Callback {
     @Inject
     lateinit var localPlayer: ExoPlayer
+    @Inject
     lateinit var database: MusicDatabase
 
     @Inject
