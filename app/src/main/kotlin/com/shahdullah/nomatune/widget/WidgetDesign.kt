@@ -214,6 +214,8 @@ internal fun WidgetControlButton(
     }
 }
 
+internal fun openArchiveTuneAction(context: Context): Action = openNomaTuneAction(context)
+
 internal fun openNomaTuneAction(context: Context): Action =
     actionStartActivity(
         Intent(context, MainActivity::class.java).apply {

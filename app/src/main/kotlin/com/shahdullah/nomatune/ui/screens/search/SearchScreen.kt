@@ -478,7 +478,7 @@ private fun SuggestedSongsSection(
                     YouTubeListItem(
                         item = song,
                         albumIndex = index + 1,
-                        viewCountText = song.viewCountText,
+                        viewCountText = null,
                         isActive = song.id == mediaMetadata?.id,
                         isPlaying = isPlaying,
                         isSwipeable = false,
