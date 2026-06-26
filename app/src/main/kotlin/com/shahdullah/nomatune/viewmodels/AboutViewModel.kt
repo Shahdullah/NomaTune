@@ -437,6 +437,7 @@ class AboutViewModel
                             labelResId = R.string.about_content_desc_website,
                             url = "https://nomatune.vercel.app",
                         ),
+                        AboutLinkUiModel(
                             id = "donate",
                             iconResId = R.drawable.coffee,
                             labelResId = R.string.about_content_desc_donate,
