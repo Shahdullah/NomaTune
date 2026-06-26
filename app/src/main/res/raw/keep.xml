@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+  <!--
+    Prevents the resource shrinker (isShrinkResources=true) from stripping font files
+    that are only referenced from Kotlin/Compose code (not XML layouts).
+    Without this, poppins.ttf and sfprodisplaybold.ttf get removed from release APKs,
+    causing: Resources$NotFoundException: Font resource ID #0x7f090000 could not be retrieved
+  -->
+  <resources xmlns:tools="http://schemas.android.com/tools"
+      tools:keep="@font/poppins,@font/sfprodisplaybold" />
