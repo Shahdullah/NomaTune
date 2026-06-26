@@ -704,7 +704,6 @@ fun UpdateScreen(
         BottomSheetPage(
             state = updateSheetState,
             modifier = Modifier.align(Alignment.BottomCenter),
-            contentWindowInsets = LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Bottom),
         )
     }
 

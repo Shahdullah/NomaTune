@@ -131,7 +131,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -1136,7 +1135,7 @@ fun BottomSheetPlayer(
         }
 
         val controlsContent: @Composable ColumnScope.(MediaMetadata) -> Unit = { mediaMetadata ->
-            val clipboardManager = LocalClipboardManager.current
+            val clipboardManager = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             PlayerControlsContent(
                 mediaMetadata = mediaMetadata,
                 playerDesignStyle = playerDesignStyle,
