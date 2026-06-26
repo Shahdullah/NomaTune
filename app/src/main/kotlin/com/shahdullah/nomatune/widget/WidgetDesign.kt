@@ -380,3 +380,5 @@ private fun Color.blendWith(other: Color, fraction: Float): Color {
         alpha = alpha * inverse + other.alpha * clampedFraction,
     )
 }
+
+internal val ArchiveTuneWidgetColors = NomaTuneWidgetColors

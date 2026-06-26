@@ -91,3 +91,37 @@ private fun normalizeCanvasArtistName(raw: String): String {
 
     return first.replace(Regex("\\s+"), " ").trim()
 }
+
+internal suspend fun resolveCanvasArtworkForPlayback(
+    mediaId: String,
+    songTitleRaw: String,
+    artistNameRaw: String,
+    albumId: String? = null,
+    albumTitleRaw: String? = null,
+    storefront: String,
+    requireVertical: Boolean,
+    allowNetwork: Boolean,
+): CanvasArtwork? {
+    val cached = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        CanvasArtworkPlaybackCache.get(mediaId)
+    }
+    if (cached != null && (requireVertical && !cached.preferredVerticalAnimationUrl.isNullOrBlank() ||
+            !requireVertical && !cached.preferredAnimationUrl.isNullOrBlank())) {
+        return cached
+    }
+
+    if (!allowNetwork || mediaId.isBlank()) return null
+
+    return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val fetched = fetchCanvasArtworkForPlayback(
+            songTitleRaw = songTitleRaw,
+            artistNameRaw = artistNameRaw,
+            storefront = storefront,
+            requireVertical = requireVertical,
+        )
+        if (fetched != null) {
+            CanvasArtworkPlaybackCache.put(mediaId, fetched)
+        }
+        fetched
+    }
+}

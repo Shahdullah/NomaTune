@@ -31,7 +31,8 @@ data class GitCommit(
     val message: String,
     val author: String,
     val date: String,
-    val url: String
+    val url: String,
+    val authorAvatarUrl: String? = null,
 )
 
 data class ReleaseInfo(
@@ -54,7 +55,19 @@ object Updater {
     private const val StableDownloadUrl = "https://github.com/Shahdullah/NomaTune/releases/latest"
     private const val DailyNightlyDownloadUrl =
         "https://github.com/NomaTuneApp/daily-nightly/releases/latest"
-    var lastCheckTime = -1L
+    fun isUpdateAvailable(latestVersion: String, currentVersion: String): Boolean {
+        val latestParts = latestVersion.trimStart('v').split(".").mapNotNull { it.toIntOrNull() }
+        val currentParts = currentVersion.split("-").firstOrNull()?.split(".")?.mapNotNull { it.toIntOrNull() } ?: emptyList()
+        for (i in 0 until maxOf(latestParts.size, currentParts.size)) {
+            val lv = latestParts.getOrElse(i) { 0 }
+            val cv = currentParts.getOrElse(i) { 0 }
+            if (lv > cv) return true
+            if (lv < cv) return false
+        }
+        return false
+    }
+
+        var lastCheckTime = -1L
         private set
     private var latestReleaseTag: String? = null
     private var latestDailyNightlyReleaseTag: String? = null

@@ -1053,4 +1053,11 @@
     <string name="big">Big</string>
     <string name="small">Small</string>
     <string name="viewCountText">%s views</string>
+
+    <string name="archivetune_canvas">Canvas</string>
+    <string name="archivetune_canvas_desc">Show animated canvas backgrounds during playback</string>
+    <string name="build_your_mix_manual_required">Please enter an artist, genre, or mood to build your mix</string>
+    <string name="build_your_mix_no_manual_match">No songs found matching your input</string>
+    <string name="build_your_mix_failed">Failed to build mix</string>
+    <string name="visibility_off">Hidden</string>
 </resources>

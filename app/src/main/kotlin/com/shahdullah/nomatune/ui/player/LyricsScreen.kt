@@ -130,8 +130,11 @@ fun LyricsScreen(
     mediaMetadata: MediaMetadata,
     onBackClick: () -> Unit,
     navController: NavController,
+    lyricsSyncOffset: Int = 0,
+    onLyricsSyncOffsetChange: (Int) -> Unit = {},
     onQueueClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    backHandlerEnabled: Boolean = true,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val player = playerConnection.player

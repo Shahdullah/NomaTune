@@ -20,4 +20,9 @@ object MusicWidgetKeys {
     val IS_AVAILABLE = booleanPreferencesKey("widget_is_available")
     val DOMINANT_COLOR = intPreferencesKey("widget_dominant_color")
     val PLAYBACK_POSITION = floatPreferencesKey("widget_position")
+    val LISTENING_TIME = androidx.datastore.preferences.core.stringPreferencesKey("widget_listening_time")
+    val RECENT_SONGS = androidx.datastore.preferences.core.stringPreferencesKey("widget_recent_songs")
+    val GENRES = androidx.datastore.preferences.core.stringPreferencesKey("widget_genres")
+    val RECOMMENDATIONS = androidx.datastore.preferences.core.stringPreferencesKey("widget_recommendations")
+    val TOP_SONG_SUMMARY = androidx.datastore.preferences.core.stringPreferencesKey("widget_top_song_summary")
 }

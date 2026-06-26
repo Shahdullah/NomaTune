@@ -15,8 +15,8 @@ import com.shahdullah.nomatune.utils.dataStore
 
 fun getPresenceIntervalMillis(context: Context): Long {
     val intervalPreset = context.dataStore[stringPreferencesKey("discordPresenceIntervalPreset")] ?: "20s"
-    val customValue = context.dataStore[DiscordPresenceIntervalValueKey] ?: 30
-    val customUnit = context.dataStore[DiscordPresenceIntervalUnitKey] ?: "S"
+    val customValue = (context.dataStore[DiscordPresenceIntervalValueKey] as? Int) ?: 30
+    val customUnit = (context.dataStore[DiscordPresenceIntervalUnitKey] as? String) ?: "S"
 
     return when (intervalPreset) {
         "Disabled" -> 0L // no throttling

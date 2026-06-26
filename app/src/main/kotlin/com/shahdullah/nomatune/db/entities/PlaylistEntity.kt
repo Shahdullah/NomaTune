@@ -38,6 +38,8 @@ data class PlaylistEntity(
     val customOrder: Int? = null,
     @ColumnInfo(name = "isLocal", defaultValue = "0")
     val isLocal: Boolean = false,
+    @ColumnInfo(name = "isHidden", defaultValue = "0")
+    val isHidden: Boolean = false,
     @ColumnInfo(name = "isAutoSync", defaultValue = "0")
     val isAutoSync: Boolean = false,
     @ColumnInfo(defaultValue = "NULL")

@@ -37,7 +37,10 @@ import com.shahdullah.nomatune.utils.dataStore
 import com.shahdullah.nomatune.utils.reportException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -152,6 +155,9 @@ class BackupRestoreViewModel @Inject constructor(
 ) : ViewModel() {
     private val _backupRestoreProgress = MutableStateFlow<BackupRestoreProgressUi?>(null)
     val backupRestoreProgress: StateFlow<BackupRestoreProgressUi?> = _backupRestoreProgress.asStateFlow()
+
+    private val _backupEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val backupEvent: SharedFlow<String> = _backupEvent.asSharedFlow()
 
     private fun emitProgress(
         title: String,

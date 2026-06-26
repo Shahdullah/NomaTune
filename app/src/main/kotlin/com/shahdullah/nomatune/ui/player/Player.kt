@@ -131,6 +131,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -1135,6 +1136,7 @@ fun BottomSheetPlayer(
         }
 
         val controlsContent: @Composable ColumnScope.(MediaMetadata) -> Unit = { mediaMetadata ->
+            val clipboardManager = LocalClipboardManager.current
             PlayerControlsContent(
                 mediaMetadata = mediaMetadata,
                 playerDesignStyle = playerDesignStyle,
@@ -1161,6 +1163,7 @@ fun BottomSheetPlayer(
                 onSliderValueChange = onSliderValueChange,
                 onSliderValueChangeFinished = onSliderValueChangeFinished,
                 currentFormat = if (playerDesignStyle == PlayerDesignStyle.V7) currentFormat else null,
+                clipboardManager = clipboardManager,
             )
         }
 

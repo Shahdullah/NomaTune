@@ -41,6 +41,19 @@ import com.shahdullah.nomatune.storage.StorageMigrationPhase
 import com.shahdullah.nomatune.storage.StorageMigrationProgress
 import javax.inject.Inject
 
+enum class StorageCacheClearUiKind {
+    SONGS,
+    DOWNLOADS,
+    IMAGES,
+    CANVAS,
+}
+
+data class StorageCacheClearUiModel(
+    val kind: StorageCacheClearUiKind,
+    val percent: Int,
+)
+
+
 sealed interface StorageSettingsScreenState {
     data object Loading : StorageSettingsScreenState
     data class Success(val model: StorageSettingsUiModel) : StorageSettingsScreenState
@@ -54,6 +67,7 @@ data class StorageSettingsUiModel(
     val storageOptions: StorageLocationUiOptions,
     val picker: StorageLocationPickerUiModel,
     val migration: StorageMigrationUiModel?,
+    val cacheClear: StorageCacheClearUiModel? = null,
 )
 
 @Immutable
@@ -306,4 +320,5 @@ private data class StorageSettingsStatePayload(
     val selection: StorageFolderSelection,
     val picker: StorageLocationPickerUiModel,
     val migration: StorageMigrationUiModel?,
+    val cacheClear: StorageCacheClearUiModel? = null,
 )
