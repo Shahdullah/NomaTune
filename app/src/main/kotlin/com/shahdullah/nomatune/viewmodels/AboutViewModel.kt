@@ -437,13 +437,6 @@ class AboutViewModel
                             labelResId = R.string.about_content_desc_website,
                             url = "https://nomatune.vercel.app",
                         ),
-                        AboutLinkUiModel(
-                            id = "telegram",
-                            iconResId = R.drawable.telegram,
-                            labelResId = R.string.about_content_desc_telegram,
-                            url = "https://discord.gg/XF2fpb9rTq",
-                        ),
-                        AboutLinkUiModel(
                             id = "donate",
                             iconResId = R.drawable.coffee,
                             labelResId = R.string.about_content_desc_donate,

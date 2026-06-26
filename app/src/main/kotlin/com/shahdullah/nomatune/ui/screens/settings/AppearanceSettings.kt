@@ -69,7 +69,7 @@ import androidx.navigation.NavController
 import com.shahdullah.nomatune.LocalPlayerAwareWindowInsets
 import com.shahdullah.nomatune.R
 import com.shahdullah.nomatune.constants.AppFontPreference
-import com.shahdullah.nomatune.constants.ArchiveTuneCanvasKey
+import com.shahdullah.nomatune.constants.NomaTuneCanvasKey
 import com.shahdullah.nomatune.constants.BackdropBlurAmountKey
 import com.shahdullah.nomatune.constants.BackdropEnabledKey
 import com.shahdullah.nomatune.constants.BlurRadiusKey
@@ -158,7 +158,7 @@ fun AppearanceSettings(
         )
     val (archiveTuneCanvasEnabled, onArchiveTuneCanvasEnabledChange) =
         rememberPreference(
-            ArchiveTuneCanvasKey,
+            NomaTuneCanvasKey,
             defaultValue = false,
         )
     val (thumbnailCornerRadius, onThumbnailCornerRadiusChange) =
@@ -638,8 +638,8 @@ fun AppearanceSettings(
 
             item {
                 SwitchPreference(
-                    title = { Text(stringResource(R.string.archivetune_canvas)) },
-                    description = stringResource(R.string.archivetune_canvas_desc),
+                    title = { Text(stringResource(R.string.nomatune_canvas)) },
+                    description = stringResource(R.string.nomatune_canvas_desc),
                     icon = { Icon(painterResource(R.drawable.motion_photos_on), null) },
                     checked = archiveTuneCanvasEnabled,
                     onCheckedChange = onArchiveTuneCanvasEnabledChange,

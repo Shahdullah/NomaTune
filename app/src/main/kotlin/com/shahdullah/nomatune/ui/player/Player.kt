@@ -177,7 +177,7 @@ import com.shahdullah.nomatune.LocalDownloadUtil
 import com.shahdullah.nomatune.LocalPlayerConnection
 import com.shahdullah.nomatune.R
 import com.shahdullah.nomatune.canvas.models.CanvasArtwork
-import com.shahdullah.nomatune.constants.ArchiveTuneCanvasKey
+import com.shahdullah.nomatune.constants.NomaTuneCanvasKey
 import com.shahdullah.nomatune.constants.BackdropBlurAmountKey
 import com.shahdullah.nomatune.constants.BackdropEnabledKey
 import com.shahdullah.nomatune.constants.BlurRadiusKey
@@ -435,7 +435,7 @@ fun BottomSheetPlayer(
 
     val aodModeEnabled by playerConnection.aodModeEnabled.collectAsStateWithLifecycle()
     val (thumbnailCornerRadius) = rememberPreference(ThumbnailCornerRadiusKey, defaultValue = 8f)
-    val archiveTuneCanvasEnabled by rememberPreference(ArchiveTuneCanvasKey, false)
+    val archiveTuneCanvasEnabled by rememberPreference(NomaTuneCanvasKey, false)
     val lowDataModeActive = rememberLowDataModeActive()
     val (maxCanvasCacheSize, _) =
         rememberPreference(
