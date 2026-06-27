@@ -514,7 +514,8 @@ class MainActivity : ComponentActivity() {
             val updateChannel by rememberEnumPreference(UpdateChannelKey, defaultValue = UpdateChannel.STABLE)
 
             LaunchedEffect(Unit) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                val isOnboardingDone = PreferenceStore.get(NomaTuneOnboardingCompletedKey) ?: false
+                if (isOnboardingDone && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                     ContextCompat.checkSelfPermission(
                         this@MainActivity,
                         Manifest.permission.POST_NOTIFICATIONS
@@ -543,7 +544,7 @@ class MainActivity : ComponentActivity() {
                             else -> Updater.getLatestVersionName()
                         }
                         versionResult.onSuccess {
-                            if (!Updater.isSameVersion(it, BuildConfig.VERSION_NAME)) {
+                            if (Updater.isUpdateAvailable(it, BuildConfig.VERSION_NAME)) {
                                 latestVersionName = it
                             }
                         }
@@ -628,7 +629,7 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(latestVersionName) {
                         if (
                             BuildConfig.UPDATER_AVAILABLE &&
-                            !Updater.isSameVersion(latestVersionName, BuildConfig.VERSION_NAME)
+                            Updater.isUpdateAvailable(latestVersionName, BuildConfig.VERSION_NAME)
                         ) {
                             val releaseNotesResult = when (updateChannel) {
                                 UpdateChannel.DAILY_NIGHTLY -> Updater.getLatestDailyNightlyReleaseNotes()
@@ -1566,7 +1567,7 @@ class MainActivity : ComponentActivity() {
                                                         BadgedBox(badge = {
                                                             if (
                                                                 BuildConfig.UPDATER_AVAILABLE &&
-                                                                !Updater.isSameVersion(latestVersionName, BuildConfig.VERSION_NAME)
+                                                                Updater.isUpdateAvailable(latestVersionName, BuildConfig.VERSION_NAME)
                                                             ) {
                                                                 Badge()
                                                             }
