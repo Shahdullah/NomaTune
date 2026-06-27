@@ -118,4 +118,6 @@ sealed interface OnboardingEvent {
     data class OpenUri(
         val url: String,
     ) : OnboardingEvent
+
+    data object Complete : OnboardingEvent
 }

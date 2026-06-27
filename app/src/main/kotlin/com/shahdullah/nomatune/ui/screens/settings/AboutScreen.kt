@@ -47,6 +47,7 @@ import coil3.compose.AsyncImage
 import com.shahdullah.nomatune.BuildConfig
 import com.shahdullah.nomatune.R
 import com.shahdullah.nomatune.ui.component.IconButton
+import com.shahdullah.nomatune.utils.Updater
 import com.shahdullah.nomatune.ui.utils.backToMain
 import com.shahdullah.nomatune.LocalPlayerAwareWindowInsets
 import androidx.compose.ui.res.stringResource
@@ -335,7 +336,7 @@ fun AboutScreen(
                                 val tagName = json.optString("tag_name", "")
                                 val htmlUrl = json.optString("html_url", "")
                                 val latestVersion = tagName.removePrefix("v")
-                                if (latestVersion.isNotBlank() && latestVersion != BuildConfig.VERSION_NAME && htmlUrl.isNotBlank()) {
+                                if (latestVersion.isNotBlank() && Updater.isUpdateAvailable(latestVersion, BuildConfig.VERSION_NAME) && htmlUrl.isNotBlank()) {
                                     uriHandler.openUri(htmlUrl)
                                 } else {
                                     Toast.makeText(context, "You're up to date!", Toast.LENGTH_SHORT).show()

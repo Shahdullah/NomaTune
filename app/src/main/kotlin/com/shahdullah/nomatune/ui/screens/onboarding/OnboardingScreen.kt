@@ -84,6 +84,7 @@ import com.shahdullah.nomatune.onboarding.OnboardingViewModel
 
 @Composable
 fun OnboardingRoute(
+    onNavigateToHome: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: OnboardingViewModel = hiltViewModel(),
 ) {
@@ -115,6 +116,7 @@ fun OnboardingRoute(
                         context.startActivity(Intent(Intent.ACTION_VIEW, event.url.toUri()))
                     }
                 }
+                OnboardingEvent.Complete -> onNavigateToHome()
             }
         }
     }
@@ -377,7 +379,7 @@ private fun SunnyIdentityPanel(
                 Icon(
                     painter = painterResource(iconResId),
                     contentDescription = null,
-                    modifier = Modifier.size(150.dp),
+                    modifier = Modifier.size(170.dp),
                 )
             }
         }

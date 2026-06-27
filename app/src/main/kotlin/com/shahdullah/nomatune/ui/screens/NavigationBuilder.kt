@@ -479,6 +479,12 @@ fun NavGraphBuilder.navigationBuilder(
         )
     }
     composable("welcome") {
-        OnboardingRoute()
+        OnboardingRoute(
+            onNavigateToHome = {
+                navController.navigate(Screens.Home.route) {
+                    popUpTo("welcome") { inclusive = true }
+                }
+            }
+        )
     }
 }
