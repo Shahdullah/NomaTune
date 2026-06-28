@@ -51,9 +51,9 @@ object PaxsenixLyrics {
 
     private fun isAmpTokenExpired(): Boolean = runCatching {
         val payload = ampToken.split(".").getOrNull(1) ?: return true
-        val json = String(android.util.Base64.decode(
-            payload, android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING))
-        val exp = org.json.JSONObject(json).optLong("exp", 0L)
+        val json = String(java.util.Base64.getUrlDecoder().decode(
+            payload.padEnd((payload.length + 3) / 4 * 4, '=')))
+        val exp = Regex(""""exp"\s*:\s*(\d+)""").find(json)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
         exp > 0 && System.currentTimeMillis() / 1000 > exp
     }.getOrDefault(true)
 
