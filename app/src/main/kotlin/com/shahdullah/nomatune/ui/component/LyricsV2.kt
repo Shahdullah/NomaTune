@@ -351,7 +351,7 @@ fun LyricsV2(
             val pos = sliderPos ?: player.currentPosition
 
             playbackPositionMs = (pos + lyricsSyncOffset.toLong()).coerceAtLeast(0L)
-            currentPositionMs = (playbackPositionMs + leadMs + LYRIC_VISUAL_TUNING_OFFSET_MS).coerceAtLeast(0L)
+            currentPositionMs = (playbackPositionMs + leadMs).coerceAtLeast(0L)
 
             currentLineIndex = findCurrentLineIndex(entriesWithWords, currentPositionMs, 0L)
             delay(pollIntervalMs)
@@ -646,9 +646,9 @@ fun LyricsV2(
                 )
                 val animatedLineScale by androidx.compose.animation.core.animateFloatAsState(
                     targetValue = if (isActive) 1f else 0.95f,
-                    animationSpec = androidx.compose.animation.core.tween(
-                        durationMillis = 166,
-                        easing = androidx.compose.animation.core.FastOutSlowInEasing,
+                    animationSpec = androidx.compose.animation.core.spring(
+                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                        stiffness = androidx.compose.animation.core.Spring.StiffnessMedium,
                     ),
                     label = "v2LineScale",
                 )
@@ -1342,10 +1342,10 @@ private fun LyricsLineLrcBounce(
     val effectiveFontSize = if (isAllBackground) fontSize * 0.82f else fontSize
     val fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold
     val fontStyle = if (isAllBackground) FontStyle.Italic else FontStyle.Normal
-    val scaleAnimatables = remember(words.size) { List(words.size) { Animatable(1f) } }
-    val floatAnimatables = remember(words.size) { List(words.size) { Animatable(0f) } }
+    val scaleAnimatables = remember(words.size, text) { List(words.size) { Animatable(1f) } }
+    val floatAnimatables = remember(words.size, text) { List(words.size) { Animatable(0f) } }
 
-    LaunchedEffect(isActive) {
+    LaunchedEffect(isActive, text) {
         if (!isActive || bounceFactor == 0f) return@LaunchedEffect
         words.indices.forEach { i ->
             launch {
@@ -1481,9 +1481,9 @@ private fun InstrumentalBreakItem(
     }
     val fillFraction by androidx.compose.animation.core.animateFloatAsState(
         targetValue = targetFillFraction,
-        animationSpec = spring(
-            stiffness = Spring.StiffnessHigh,
-            dampingRatio = Spring.DampingRatioNoBouncy,
+        animationSpec = androidx.compose.animation.core.tween(
+            durationMillis = 100,
+            easing = androidx.compose.animation.core.LinearEasing,
         ),
         label = "instrumentalFill",
     )

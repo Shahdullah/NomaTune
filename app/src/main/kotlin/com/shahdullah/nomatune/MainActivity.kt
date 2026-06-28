@@ -598,9 +598,19 @@ class MainActivity : ComponentActivity() {
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                             } else {
+                                val currentVer = BuildConfig.VERSION_NAME
+                                val latestVer = latestVersionName.removePrefix("v")
+                                val changelogUrl = "https://github.com/Shahdullah/NomaTune/compare/v${currentVer}...v${latestVer}"
+                                val changelogLabel = "Full Changelog: v${currentVer}...v${latestVer}"
                                 Text(
-                                    text = stringResource(R.string.release_notes_unavailable),
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    text = changelogLabel,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                                    ),
+                                    modifier = Modifier.clickable {
+                                        try { uriHandler.openUri(changelogUrl) } catch (_: Exception) {}
+                                    },
                                 )
                             }
                         }

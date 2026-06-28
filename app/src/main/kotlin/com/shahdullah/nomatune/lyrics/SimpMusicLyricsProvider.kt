@@ -19,13 +19,19 @@ object SimpMusicLyricsProvider : LyricsProvider {
     override fun isEnabled(context: Context): Boolean =
         context.dataStore[EnableSimpMusicLyricsKey] ?: true
 
+    private fun isYouTubeId(id: String): Boolean = id.matches(Regex("[A-Za-z0-9_-]{11}"))
+
     override suspend fun getLyrics(
         id: String,
         title: String,
         artist: String,
         album: String?,
         duration: Int,
-    ): Result<String> = SimpMusicLyrics.getLyrics(videoId = id, duration = duration)
+    ): Result<String> {
+        if (!isYouTubeId(id)) return Result.failure(
+            IllegalStateException("SimpMusic: not a YouTube ID"))
+        return SimpMusicLyrics.getLyrics(videoId = id, duration = duration)
+    }
 
     override suspend fun getAllLyrics(
         id: String,
@@ -35,6 +41,7 @@ object SimpMusicLyricsProvider : LyricsProvider {
         duration: Int,
         callback: (String) -> Unit,
     ) {
+        if (!isYouTubeId(id)) return
         SimpMusicLyrics.getAllLyrics(videoId = id, duration = duration, callback = callback)
     }
 }

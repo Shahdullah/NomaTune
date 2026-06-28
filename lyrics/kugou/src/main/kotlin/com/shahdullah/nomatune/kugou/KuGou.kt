@@ -194,5 +194,5 @@ object KuGou {
     private val ACCEPTED_REGEX = "\\[(\\d\\d):(\\d\\d)\\.(\\d{2,3})\\].*".toRegex()
     private val BANNED_REGEX = ".+].+[:：].+".toRegex()
 
-    private const val DURATION_TOLERANCE = 8
+    private const val DURATION_TOLERANCE = 10
 }

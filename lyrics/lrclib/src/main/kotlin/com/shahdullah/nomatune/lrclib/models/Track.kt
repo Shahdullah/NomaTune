@@ -28,7 +28,7 @@ internal fun List<Track>.bestMatchingFor(duration: Int): Track? {
     }
 
     return minByOrNull { abs(it.duration.toInt() - duration) }
-        ?.takeIf { abs(it.duration.toInt() - duration) <= 2 }
+        ?.takeIf { abs(it.duration.toInt() - duration) <= 5 }
 }
 
 internal fun List<Track>.bestMatchingFor(
@@ -59,7 +59,7 @@ internal fun List<Track>.bestMatchingFor(
     // From name-filtered candidates pick closest duration; fall back to full list if none pass name filter
     val pool = nameCandidates.ifEmpty { this }
     return pool.minByOrNull { abs(it.duration.toInt() - duration) }
-        ?.takeIf { abs(it.duration.toInt() - duration) <= 2 }
+        ?.takeIf { abs(it.duration.toInt() - duration) <= 5 }
 }
 
 private fun List<Track>.findBestMatch(trackName: String, artistName: String): Track? {

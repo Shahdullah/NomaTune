@@ -49,6 +49,14 @@ object PaxsenixLyrics {
         ampToken = token
     }
 
+    private fun isAmpTokenExpired(): Boolean = runCatching {
+        val payload = ampToken.split(".").getOrNull(1) ?: return true
+        val json = String(android.util.Base64.decode(
+            payload, android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING))
+        val exp = org.json.JSONObject(json).optLong("exp", 0L)
+        exp > 0 && System.currentTimeMillis() / 1000 > exp
+    }.getOrDefault(true)
+
     private val json = Json {
         isLenient = true
         ignoreUnknownKeys = true
@@ -178,6 +186,8 @@ object PaxsenixLyrics {
         artist: String,
         durationSeconds: Int,
     ): Result<String> = runCatching {
+        if (isAmpTokenExpired())
+            throw IllegalStateException("AMP token expired — update via setAmpToken()")
         val durationMs = resolveDurationMs(durationSeconds)
         val songId = searchAppleMusicId(title, artist, durationMs)
             ?: throw IllegalStateException("Apple Music lyrics unavailable")

@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.async
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.supervisorScope
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.selects.select
 import javax.inject.Inject
 
@@ -59,6 +60,7 @@ constructor(
 
     private val cache = LruCache<String, List<LyricsResult>>(MAX_CACHE_SIZE)
     private val singleLyricsCache = LruCache<String, String>(MAX_CACHE_SIZE)
+    private val inFlight = ConcurrentHashMap<String, kotlinx.coroutines.Deferred<List<LyricsResult>>>()
     private var currentLyricsJob: Job? = null
 
     suspend fun getLyrics(mediaMetadata: MediaMetadata, preferredProviderOnly: Boolean = false): String {
@@ -302,6 +304,9 @@ constructor(
         if (normalized.isEmpty()) return false
         if (normalized == LYRICS_NOT_FOUND) return false
 
+        // Accept timestamp-only LRC (instrumental tracks)
+        if (normalized.lines().count { TIMESTAMP_REGEX.containsMatchIn(it) } >= 2) return true
+
         val remaining =
             TIMESTAMP_REGEX
                 .replace(normalized, "")
@@ -325,12 +330,15 @@ constructor(
         get() = lyricsCacheKey(
             title = title,
             artists = artists.joinToString { it.name },
+            album = album?.title,
         )
 
     private fun lyricsCacheKey(
         title: String,
         artists: String,
+        album: String? = null,
     ): String = "${artists.trim().lowercase()}::${title.trim().lowercase()}"
+        + (album?.let { "::${it.trim().lowercase()}" } ?: "")
 
     companion object {
         private const val MAX_CACHE_SIZE = 16

@@ -25,7 +25,7 @@ import kotlin.math.abs
 
 object LrcLib {
     private const val MAX_SEARCH_RESULTS = 5
-    private const val MAX_DURATION_DELTA_SECONDS = 2
+    private const val MAX_DURATION_DELTA_SECONDS = 5
 
     private val client by lazy {
         HttpClient(CIO) {
@@ -73,10 +73,10 @@ object LrcLib {
     ) = runCatching {
         val tracks = queryLyrics(artist, title, album)
 
-        val lyrics = when {
-            duration == -1 -> tracks.bestMatchingFor(duration, title, artist)?.preferredLyrics()
-            else -> tracks.bestMatchingFor(duration)?.preferredLyrics()
-        } ?: throw IllegalStateException("Lyrics unavailable")
+        val lyrics = tracks
+            .bestMatchingFor(duration, title, artist)
+            ?.preferredLyrics()
+            ?: throw IllegalStateException("Lyrics unavailable")
 
         lyrics
     }
