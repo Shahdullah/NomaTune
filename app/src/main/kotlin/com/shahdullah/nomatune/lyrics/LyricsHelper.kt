@@ -337,8 +337,8 @@ constructor(
         title: String,
         artists: String,
         album: String? = null,
-    ): String = "${artists.trim().lowercase()}::${title.trim().lowercase()}"
-        + (album?.let { "::${it.trim().lowercase()}" } ?: "")
+    ): String = "${artists.trim().lowercase()}::${title.trim().lowercase()}" +
+        (album?.let { "::${it.trim().lowercase()}" } ?: "")
 
     companion object {
         private const val MAX_CACHE_SIZE = 16
