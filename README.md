@@ -107,6 +107,14 @@
 
   ---
 
+  ## 🙏 Acknowledgments
+
+  NomaTune is built upon the codebase of [ArchiveTune](https://github.com/ArchiveTuneApp/ArchiveTune), an open-    source YouTube Music client licensed under GPL-3.0.
+
+  Full credit to the ArchiveTune team and contributors for the original architecture, feature set, and design.     work this project is based on.
+
+---
+  
   ## 📄 License
 
   This project is licensed under the **GNU General Public License v3.0** — see [LICENSE](LICENSE) for details.
