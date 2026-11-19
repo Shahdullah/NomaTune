@@ -204,13 +204,15 @@ class InnerTube {
             if (includeVisitorData) {
                 authState.visitorData?.let { append("X-Goog-Visitor-Id", it) }
             }
-            if (setLogin && client.loginSupported) {
+            if (setLogin && client.supportsCookieAuthentication) {
                 authState.cookie?.let { cookie ->
                     append("cookie", cookie)
                     val loginCookieValue = youtubeLoginCookieValue(cookie) ?: return@let
                     val currentTime = System.currentTimeMillis() / 1000
                     val sapisidHash = sha1("$currentTime $loginCookieValue $requestOrigin")
                     append("Authorization", "SAPISIDHASH ${currentTime}_${sapisidHash}")
+                    append("X-Goog-AuthUser", "0")
+                    authState.dataSyncId.delegatedSessionIdOrNull()?.let { append("X-Goog-PageId", it) }
                 }
             }
         }
@@ -234,13 +236,15 @@ class InnerTube {
             append("X-Origin", requestOrigin)
             append("Referer", client.requestReferer())
             authState.visitorData?.let { append("X-Goog-Visitor-Id", it) }
-            if (client.loginSupported) {
+            if (client.supportsCookieAuthentication) {
                 authState.cookie?.let { cookie ->
                     append("cookie", cookie)
                     val loginCookieValue = youtubeLoginCookieValue(cookie) ?: return@let
                     val currentTime = System.currentTimeMillis() / 1000
                     val sapisidHash = sha1("$currentTime $loginCookieValue $requestOrigin")
                     append("Authorization", "SAPISIDHASH ${currentTime}_${sapisidHash}")
+                    append("X-Goog-AuthUser", "0")
+                    authState.dataSyncId.delegatedSessionIdOrNull()?.let { append("X-Goog-PageId", it) }
                 }
             }
         }
@@ -269,6 +273,13 @@ class InnerTube {
                 currentDelay = (currentDelay * factor).toLong()
             }
         }
+    }
+
+    private fun String?.delegatedSessionIdOrNull(): String? {
+        val value = this?.trim()?.takeIf(String::isNotBlank) ?: return null
+        val separatorIndex = value.indexOf("||")
+        if (separatorIndex <= 0 || separatorIndex + 2 >= value.length) return null
+        return value.substring(0, separatorIndex).trim().takeIf(String::isNotBlank)
     }
 
     private fun Throwable.isTransientNetworkFailure(): Boolean {
@@ -319,7 +330,7 @@ class InnerTube {
         setLogin: Boolean = true,
         authState: PlaybackAuthState = currentAuthState(),
     ) = withRetry {
-        val includeDataSyncId = setLogin && client.loginSupported && !authState.dataSyncId.isNullOrBlank()
+        val includeDataSyncId = setLogin && client.supportsCookieAuthentication && authState.hasPlaybackLoginContext
         try {
             executePlayerRequest(
                 client = client,
@@ -339,7 +350,7 @@ class InnerTube {
                 playlistId = playlistId,
                 signatureTimestamp = signatureTimestamp,
                 poToken = poToken,
-                setLogin = false,
+                setLogin = setLogin,
                 authState = authState,
                 includeDataSyncId = false,
             )
@@ -355,7 +366,7 @@ class InnerTube {
         setLogin: Boolean,
         authState: PlaybackAuthState,
         includeDataSyncId: Boolean,
-    ) = httpClient.post("player") {
+    ) = httpClient.post(client.requestApiUrl("player")) {
         ytClient(client, setLogin = setLogin, authState = authState)
         setBody(
             PlayerBody(
@@ -367,14 +378,14 @@ class InnerTube {
                     if (client.isEmbedded) {
                         it.copy(
                             thirdParty = Context.ThirdParty(
-                                embedUrl = "https://www.youtube.com/watch?v=${videoId}"
+                                embedUrl = "https://www.reddit.com/"
                             )
                         )
                     } else it
                 },
                 videoId = videoId,
                 playlistId = playlistId,
-                playbackContext = if (client.useSignatureTimestamp && signatureTimestamp != null) {
+                playbackContext = if (client.useSignatureTimestamp) {
                     PlayerBody.PlaybackContext(
                         PlayerBody.PlaybackContext.ContentPlaybackContext(
                             signatureTimestamp
@@ -397,6 +408,7 @@ class InnerTube {
         if (clientError.response.status != HttpStatusCode.BadRequest) return false
         val message = clientError.message.orEmpty()
         if (!message.contains("/youtubei/v1/player", ignoreCase = true)) return false
+        if (message.contains("Origin doesn't match Host", ignoreCase = true)) return false
         return message.contains("INVALID_ARGUMENT", ignoreCase = true) ||
             message.contains("invalid argument", ignoreCase = true)
     }

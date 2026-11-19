@@ -1,0 +1,16 @@
+{
+  "name": "archivetune-youtubei-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bundle": "node scripts/bundle.mjs"
+  },
+  "dependencies": {
+    "whatwg-url": "14.2.0",
+    "youtubei.js": "18.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}
