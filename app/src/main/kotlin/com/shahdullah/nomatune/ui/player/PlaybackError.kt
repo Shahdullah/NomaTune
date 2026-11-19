@@ -46,7 +46,11 @@ import androidx.media3.common.PlaybackException
 import android.widget.Toast
 import com.shahdullah.nomatune.MainActivity
 import com.shahdullah.nomatune.R
+import com.shahdullah.nomatune.constants.DataSyncIdKey
+import com.shahdullah.nomatune.constants.InnerTubeCookieKey
+import com.shahdullah.nomatune.innertube.utils.hasYouTubeLoginCookie
 import com.shahdullah.nomatune.utils.openYouTubeMusicUrl
+import com.shahdullah.nomatune.utils.rememberPreference
 
 @Composable
 fun PlaybackError(
@@ -68,23 +72,33 @@ fun PlaybackError(
     val couldNotOpenYouTubeMusicText = stringResource(R.string.could_not_open_youtube_music)
     val errorInfo = remember(error) { error.toPlaybackErrorInfo() }
     val httpCode = errorInfo.httpCode
+    val innerTubeCookie by rememberPreference(InnerTubeCookieKey, "")
+    val dataSyncId by rememberPreference(DataSyncIdKey, "")
+    // YouTube now blocks anonymous playback. If the app has no usable login
+    // context, the only way songs can stream is to sign in to YouTube Music
+    // inside NomaTune - route the error dialog to the in-app login WebView.
+    val isSignedIn = hasYouTubeLoginCookie(innerTubeCookie) && dataSyncId.isNotBlank()
+    val requiresSignIn =
+        errorInfo.kind == PlaybackErrorKind.ConfirmationRequired && !isSignedIn
     val title =
-        when (errorInfo.kind) {
-            PlaybackErrorKind.LoginRefreshRequired -> stringResource(R.string.playback_login_refresh_required)
-            PlaybackErrorKind.ConfirmationRequired -> stringResource(R.string.playback_confirmation_required)
+        when {
+            requiresSignIn -> stringResource(R.string.sign_in_required_title)
+            errorInfo.kind == PlaybackErrorKind.LoginRefreshRequired -> stringResource(R.string.playback_login_refresh_required)
+            errorInfo.kind == PlaybackErrorKind.ConfirmationRequired -> stringResource(R.string.playback_confirmation_required)
             else -> fallbackUnknown
         }
     val reason =
-        when (errorInfo.kind) {
-            PlaybackErrorKind.LoginRefreshRequired -> stringResource(R.string.playback_requires_youtube_music_login_refresh)
-            PlaybackErrorKind.ConfirmationRequired -> stringResource(R.string.playback_requires_youtube_music_confirmation)
-            PlaybackErrorKind.NoInternet -> fallbackNoInternet
-            PlaybackErrorKind.Timeout -> fallbackTimeout
-            PlaybackErrorKind.NoStream -> fallbackNoStream
-            PlaybackErrorKind.MalformedStream -> fallbackMalformedStream
-            PlaybackErrorKind.Decoder -> "$fallbackUnknown (code ${error.errorCode})"
-            PlaybackErrorKind.Http -> "$fallbackUnknown (HTTP $httpCode)"
-            PlaybackErrorKind.Unknown -> error.cause?.message?.takeIf { it.isNotBlank() }
+        when {
+            requiresSignIn -> stringResource(R.string.sign_in_required_reason)
+            errorInfo.kind == PlaybackErrorKind.LoginRefreshRequired -> stringResource(R.string.playback_requires_youtube_music_login_refresh)
+            errorInfo.kind == PlaybackErrorKind.ConfirmationRequired -> stringResource(R.string.playback_requires_youtube_music_confirmation)
+            errorInfo.kind == PlaybackErrorKind.NoInternet -> fallbackNoInternet
+            errorInfo.kind == PlaybackErrorKind.Timeout -> fallbackTimeout
+            errorInfo.kind == PlaybackErrorKind.NoStream -> fallbackNoStream
+            errorInfo.kind == PlaybackErrorKind.MalformedStream -> fallbackMalformedStream
+            errorInfo.kind == PlaybackErrorKind.Decoder -> "$fallbackUnknown (code ${error.errorCode})"
+            errorInfo.kind == PlaybackErrorKind.Http -> "$fallbackUnknown (HTTP $httpCode)"
+            else -> error.cause?.message?.takeIf { it.isNotBlank() }
                 ?: error.message?.takeIf { it.isNotBlank() }
                 ?: fallbackUnknown
         }
@@ -166,7 +180,12 @@ fun PlaybackError(
             }
 
             val recoveryUrl = errorInfo.loginRecoveryUrl
-            val recoveryAction = errorInfo.recoveryAction
+            val recoveryAction =
+                if (requiresSignIn && errorInfo.loginRecoveryUrl != null) {
+                    PlaybackRecoveryAction.RefreshLogin
+                } else {
+                    errorInfo.recoveryAction
+                }
             if (recoveryUrl != null && recoveryAction != null) {
                 Button(
                     onClick = {

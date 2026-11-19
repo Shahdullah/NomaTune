@@ -66,24 +66,25 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -n "${KEYSTORE_B64:-}" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > /tmp/release.jks
-            echo "KEYSTORE_PATH=/tmp/release.jks"        >> "$GITHUB_ENV"
-            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"  >> "$GITHUB_ENV"
-            echo "KEY_ALIAS=$KEY_ALIAS"                  >> "$GITHUB_ENV"
-            echo "KEY_PASSWORD=$KEY_PASSWORD"            >> "$GITHUB_ENV"
-          else
-            keytool -genkeypair -v \
-              -keystore /tmp/release.jks -alias nomatune \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=NomaTune,O=Shahdullah,C=US" \
-              -storepass nomatune123 -keypass nomatune123 2>/dev/null
-            echo "KEYSTORE_PATH=/tmp/release.jks" >> "$GITHUB_ENV"
-            echo "KEYSTORE_PASSWORD=nomatune123"  >> "$GITHUB_ENV"
-            echo "KEY_ALIAS=nomatune"             >> "$GITHUB_ENV"
-            echo "KEY_PASSWORD=nomatune123"       >> "$GITHUB_ENV"
-            echo "::warning::No KEYSTORE secret set — APK signed with a temporary key."
+          set -euo pipefail
+          # Every release MUST be signed with the permanent NomaTune key.
+          # Never fall back to a generated/temporary key — refuse to build instead.
+          for VAR in KEYSTORE_B64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!VAR:-}" ]; then
+              echo "::error::$VAR repository secret is not set. Refusing to build with a temporary key. Set KEYSTORE, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD secrets."
+              exit 1
+            fi
+          done
+          echo "$KEYSTORE_B64" | base64 -d > /tmp/release.jks
+          if ! keytool -list -keystore /tmp/release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null 2>&1; then
+            echo "::error::Decoded keystore is invalid or alias/password mismatch. Refusing to sign with anything but the permanent key."
+            exit 1
           fi
+          echo "KEYSTORE_PATH=/tmp/release.jks"        >> "$GITHUB_ENV"
+          echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"  >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=$KEY_ALIAS"                  >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=$KEY_PASSWORD"            >> "$GITHUB_ENV"
+          echo "Permanent NomaTune signing key verified." 
 
       - name: Build APK
         shell: bash
@@ -217,6 +218,10 @@ jobs:
             - ⚡ **Buffer-free streaming** — stream URLs are cached and refreshed *before* they expire
             - 🛡️ **PoToken session recovery** — when YouTube's bot check fails, NomaTune quietly repairs the session and retries instead of giving up
             - 🧹 Expired / stale stream detection rebuilt from the ground up
+
+            ### 🔑 Sign-in made simple
+            - 🎵 **Code 2000 / "Playback confirmation required" fixed** — when a song can't stream, NomaTune now tells you why and takes you straight to the in-app YouTube Music sign-in (no more dead-end dialogs)
+            - 🔐 YouTube blocks anonymous streaming now — signing in inside the app once fixes playback for good
 
             ### 🔔 Easier to keep updated
             - 🔔 **Update notifications are now ON by default** — NomaTune will ping you when a new release drops (requires notification permission)
