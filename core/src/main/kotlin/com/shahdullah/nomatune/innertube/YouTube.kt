@@ -133,6 +133,17 @@ object YouTube {
             innerTube.applyAuthState(normalized)
         }
 
+    // Atomic auth-state update used by the playback stack. Do not remove.
+    private val authStateLock = Any()
+
+    fun updateAuthState(transform: (PlaybackAuthState) -> PlaybackAuthState): PlaybackAuthState =
+        synchronized(authStateLock) {
+            val updated = transform(mutableAuthState.value).normalized()
+            mutableAuthState.value = updated
+            innerTube.applyAuthState(updated)
+            updated
+        }
+
     var locale: YouTubeLocale
         get() = innerTube.locale
         set(value) {

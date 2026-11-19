@@ -183,6 +183,24 @@ object BotGuardTokenGenerator {
     }
 
     /**
+     * Like [mintToken] but *throws* instead of returning `null` on failure.
+     * Throwing variant of [mintToken] for the playback stack —
+     * failures must surface as exceptions so the caller can fall back / report.
+     */
+    suspend fun mintRequiredToken(
+        videoId: String,
+        sessionId: String,
+    ): PoTokenResult {
+        if (appContext == null) throw PoTokenException("Token generator is not initialized")
+        if (permanentlyBroken) {
+            throw BrokenWebViewException("Token generation requires a usable system WebView")
+        }
+        require(videoId.isNotBlank() && sessionId.isNotBlank())
+        return mintToken(videoId, sessionId)
+            ?: throw PoTokenException("Timed out waiting for the playback token engine")
+    }
+
+    /**
      * Release the WebView to free memory (~50 MB).
      * Call from `onTrimMemory(TRIM_MEMORY_UI_HIDDEN)` or similar.
      * The engine is recreated on the next [mintToken] call.

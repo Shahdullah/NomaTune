@@ -23,7 +23,12 @@ data class PlaybackAuthState(
     val dataSyncId: String? = null,
     val poToken: String? = null,
     val poTokenGvs: String? = null,
+    val poTokenGvsSession: String? = null,
+    val poTokenGvsVideoId: String? = null,
     val poTokenPlayer: String? = null,
+    val poTokenPlayerVideoId: String? = null,
+    val poTokenSubs: String? = null,
+    val poTokenSubsVideoId: String? = null,
     val webClientPoTokenEnabled: Boolean = false,
 ) {
     val hasLoginCookie: Boolean
@@ -33,20 +38,36 @@ data class PlaybackAuthState(
         get() = hasLoginCookie && !dataSyncId.isNullOrBlank()
 
     val sessionId: String?
-        get() = if (hasPlaybackLoginContext) dataSyncId else visitorData
+        get() = if (hasPlaybackLoginContext) dataSyncId.userSessionIdOrNull() else visitorData
 
     val fingerprint: String
-        get() = sha1(
-            listOf(
-                cookie.orEmpty(),
-                visitorData.orEmpty(),
-                dataSyncId.orEmpty(),
-                poToken.orEmpty(),
-                poTokenGvs.orEmpty(),
-                poTokenPlayer.orEmpty(),
-                webClientPoTokenEnabled.toString(),
-            ).joinToString(separator = "\u0000")
-        )
+        get() =
+            sha1(
+                listOf(
+                    cookie.orEmpty(),
+                    visitorData.orEmpty(),
+                    dataSyncId.orEmpty(),
+                    poToken.orEmpty(),
+                    poTokenGvs.orEmpty(),
+                    poTokenGvsSession.orEmpty(),
+                    poTokenGvsVideoId.orEmpty(),
+                    poTokenPlayer.orEmpty(),
+                    poTokenPlayerVideoId.orEmpty(),
+                    poTokenSubs.orEmpty(),
+                    poTokenSubsVideoId.orEmpty(),
+                    webClientPoTokenEnabled.toString(),
+                ).joinToString(separator = "\u0000"),
+            )
+
+    val streamCacheFingerprint: String
+        get() =
+            sha1(
+                listOf(
+                    cookie.orEmpty(),
+                    visitorData.orEmpty(),
+                    dataSyncId.orEmpty(),
+                ).joinToString(separator = "\u0000"),
+            )
 
     fun normalized(): PlaybackAuthState =
         copy(
@@ -55,39 +76,62 @@ data class PlaybackAuthState(
             dataSyncId = dataSyncId.normalizeDataSyncId(),
             poToken = poToken.normalizeAuthValue(),
             poTokenGvs = poTokenGvs.normalizeAuthValue(),
+            poTokenGvsSession = poTokenGvsSession.normalizeAuthValue(),
+            poTokenGvsVideoId = poTokenGvsVideoId.normalizeAuthValue(),
             poTokenPlayer = poTokenPlayer.normalizeAuthValue(),
+            poTokenPlayerVideoId = poTokenPlayerVideoId.normalizeAuthValue(),
+            poTokenSubs = poTokenSubs.normalizeAuthValue(),
+            poTokenSubsVideoId = poTokenSubsVideoId.normalizeAuthValue(),
         )
 
     fun resolvePlayerPoToken(
         client: YouTubeClient,
         explicitPoToken: String? = null,
+        videoId: String? = null,
     ): String? {
         val explicit = explicitPoToken.normalizeAuthValue()
         if (explicit != null) return explicit
         if (!webClientPoTokenEnabled) return null
-        if (!needsServiceIntegrity(client)) return null
-        return poTokenPlayer ?: poToken
+        if (!client.useWebPoTokens || !supportsWebPoToken(client)) return null
+        return poTokenPlayer?.takeIf { poTokenPlayerVideoId == videoId }
+            ?: poToken
     }
 
-    fun resolveGvsPoToken(client: YouTubeClient? = null): String? {
-        if (client != null && !needsServiceIntegrity(client)) return null
+    fun resolveGvsPoToken(
+        client: YouTubeClient? = null,
+        videoId: String? = null,
+    ): String? {
+        if (client != null && (!client.useWebPoTokens || !supportsWebPoToken(client))) return null
         if (!webClientPoTokenEnabled) return null
-        return poTokenGvs ?: poToken
+
+        return poTokenGvs?.takeIf { poTokenGvsVideoId == videoId }
+            ?: poToken
+    }
+
+    fun resolveSubsPoToken(
+        client: YouTubeClient,
+        videoId: String,
+    ): String? {
+        if (!client.useWebPoTokens || !supportsWebPoToken(client)) return null
+        if (!webClientPoTokenEnabled) return null
+        return poTokenSubs?.takeIf { poTokenSubsVideoId == videoId }
+            ?: poTokenGvs?.takeIf { poTokenGvsVideoId == videoId }
+            ?: poToken
     }
 
     companion object {
         val EMPTY = PlaybackAuthState()
 
-        internal fun needsServiceIntegrity(client: YouTubeClient): Boolean {
+        fun supportsGvsPoToken(client: YouTubeClient): Boolean {
+            return supportsWebPoToken(client)
+        }
+
+        private fun supportsWebPoToken(client: YouTubeClient): Boolean {
             val name = client.clientName.uppercase(Locale.US)
             return name == "WEB" ||
                 name == "WEB_REMIX" ||
                 name == "WEB_CREATOR" ||
-                name == "MWEB" ||
-                name == "WEB_EMBEDDED_PLAYER" ||
-                name == "TVHTML5" ||
-                name == "TVHTML5_SIMPLY_EMBEDDED_PLAYER" ||
-                name == "TVHTML5_SIMPLY"
+                name == "MWEB"
         }
     }
 }
@@ -98,8 +142,46 @@ private fun String?.normalizeAuthValue(): String? {
 }
 
 private fun String?.normalizeDataSyncId(): String? {
+    val normalized = this.normalizeAuthValue()?.decodePercentEscapes() ?: return null
+    val separatorIndex = normalized.indexOf("||")
+    if (separatorIndex < 0) return normalized
+
+    val delegatedSessionId = normalized.substringBefore("||").trim()
+    val userSessionId = normalized.substring(separatorIndex + 2).trim()
+    return when {
+        delegatedSessionId.isBlank() -> userSessionId.takeIf(String::isNotBlank)
+        userSessionId.isBlank() -> delegatedSessionId
+        else -> "$delegatedSessionId||$userSessionId"
+    }
+}
+
+private fun String?.userSessionIdOrNull(): String? {
     val normalized = this.normalizeAuthValue() ?: return null
-    return normalized.takeIf { !it.contains("||") }
-        ?: normalized.takeIf { it.endsWith("||") }?.substringBefore("||")
-        ?: normalized.substringAfter("||")
+    val separatorIndex = normalized.indexOf("||")
+    return normalized
+        .substring(if (separatorIndex >= 0) separatorIndex + 2 else 0)
+        .trim()
+        .takeIf(String::isNotBlank)
+}
+
+private fun String.decodePercentEscapes(): String {
+    if (!contains('%')) return this
+
+    val builder = StringBuilder(length)
+    var index = 0
+    while (index < length) {
+        val char = this[index]
+        if (char == '%' && index + 2 < length) {
+            val high = Character.digit(this[index + 1], 16)
+            val low = Character.digit(this[index + 2], 16)
+            if (high >= 0 && low >= 0) {
+                builder.append(((high shl 4) + low).toChar())
+                index += 3
+                continue
+            }
+        }
+        builder.append(char)
+        index += 1
+    }
+    return builder.toString()
 }

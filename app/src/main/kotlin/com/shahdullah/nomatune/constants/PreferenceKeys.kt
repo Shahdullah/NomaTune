@@ -38,8 +38,7 @@ val SliderStyleKey = stringPreferencesKey("sliderStyle")
 val SwipeToSongKey = booleanPreferencesKey("SwipeToSong")
 val PlayerDesignStyleKey = stringPreferencesKey("playerDesignStyle")
 val HidePlayerThumbnailKey = booleanPreferencesKey("hidePlayerThumbnail")
-val NomaTuneCanvasKey = booleanPreferencesKey("archiveTuneCanvas")
-val ArchiveTuneCanvasKey = NomaTuneCanvasKey
+val NomaTuneCanvasKey = booleanPreferencesKey("nomatuneCanvas")
 val ThumbnailCornerRadiusKey = floatPreferencesKey("thumbnailCornerRadius")
 val CropThumbnailToSquareKey = booleanPreferencesKey("cropThumbnailToSquare")
 

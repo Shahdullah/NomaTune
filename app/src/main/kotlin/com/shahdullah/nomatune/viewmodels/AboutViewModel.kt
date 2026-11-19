@@ -548,23 +548,8 @@ class AboutViewModel
                     ),
                 respecters =
                     TeamMemberCollection.of(
-                        TeamMember(
-                            avatarUrl = "https://avatars.githubusercontent.com/u/107134739?v=4",
-                            name = "Rukamori",
-                            positionResId = R.string.about_position_archivetune,
-                            profileUrl = "https://github.com/rukamori/ArchiveTune",
-                            links =
-                                AboutLinkCollection.of(
-                                    AboutLinkUiModel(
-                                        id = "github",
-                                        iconResId = R.drawable.github,
-                                        labelResId = R.string.about_content_desc_github,
-                                        url = "https://github.com/rukamori/ArchiveTune",
-                                    ),
-                                ),
-                        ),
-                        TeamMember(
-                            avatarUrl = "https://avatars.githubusercontent.com/u/80542861?v=4",
+                    TeamMember(
+                        avatarUrl = "https://avatars.githubusercontent.com/u/80542861?v=4",
                             name = "MO AGAMY",
                             positionResId = R.string.about_position_mo_agamy,
                             profileUrl = "https://github.com/mostafaalagamy",

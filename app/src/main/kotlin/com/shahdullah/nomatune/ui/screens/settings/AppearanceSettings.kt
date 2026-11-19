@@ -161,7 +161,7 @@ fun AppearanceSettings(
             HidePlayerThumbnailKey,
             defaultValue = false,
         )
-    val (archiveTuneCanvasEnabled, onArchiveTuneCanvasEnabledChange) =
+    val (nomatuneCanvasEnabled, onNomaTuneCanvasEnabledChange) =
         rememberPreference(
             NomaTuneCanvasKey,
             defaultValue = false,
@@ -646,8 +646,8 @@ fun AppearanceSettings(
                     title = { Text(stringResource(R.string.nomatune_canvas)) },
                     description = stringResource(R.string.nomatune_canvas_desc),
                     icon = { Icon(painterResource(R.drawable.motion_photos_on), null) },
-                    checked = archiveTuneCanvasEnabled,
-                    onCheckedChange = onArchiveTuneCanvasEnabledChange,
+                    checked = nomatuneCanvasEnabled,
+                    onCheckedChange = onNomaTuneCanvasEnabledChange,
                 )
             }
 

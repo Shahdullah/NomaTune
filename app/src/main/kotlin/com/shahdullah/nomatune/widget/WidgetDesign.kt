@@ -219,7 +219,6 @@ internal fun WidgetControlButton(
     }
 }
 
-internal fun openArchiveTuneAction(context: Context): Action = openNomaTuneAction(context)
 
 internal fun openNomaTuneAction(context: Context): Action =
     actionStartActivity(
@@ -388,4 +387,3 @@ private fun Color.blendWith(other: Color, fraction: Float): Color {
     )
 }
 
-internal val ArchiveTuneWidgetColors = NomaTuneWidgetColors

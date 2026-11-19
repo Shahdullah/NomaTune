@@ -440,7 +440,7 @@ fun BottomSheetPlayer(
 
     val aodModeEnabled by playerConnection.aodModeEnabled.collectAsStateWithLifecycle()
     val (thumbnailCornerRadius) = rememberPreference(ThumbnailCornerRadiusKey, defaultValue = 8f)
-    val archiveTuneCanvasEnabled by rememberPreference(NomaTuneCanvasKey, false)
+    val nomatuneCanvasEnabled by rememberPreference(NomaTuneCanvasKey, false)
     val lowDataModeActive = rememberLowDataModeActive()
     val (maxCanvasCacheSize, _) =
         rememberPreference(
@@ -1047,11 +1047,11 @@ fun BottomSheetPlayer(
                 if (country.length == 2) country.lowercase(Locale.ROOT) else "us"
             }
         val shouldUseV7Canvas =
-            archiveTuneCanvasEnabled &&
+            nomatuneCanvasEnabled &&
                 playerDesignStyle == PlayerDesignStyle.V7 &&
                 !aodModeEnabled
         val shouldUseArtworkCanvas =
-            archiveTuneCanvasEnabled &&
+            nomatuneCanvasEnabled &&
                 (playerDesignStyle == PlayerDesignStyle.V8 || playerDesignStyle == PlayerDesignStyle.V9) &&
                 !aodModeEnabled
         val shouldFetchV7Canvas = shouldUseV7Canvas && !lowDataModeActive

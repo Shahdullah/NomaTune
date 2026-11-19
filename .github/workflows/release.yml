@@ -203,6 +203,24 @@ jobs:
           name: NomaTune v${{ steps.ver.outputs.version }}
           draft: false
           prerelease: false
-          generate_release_notes: true
+          # Release notes are written below (no auto changelog).
+          # NOTE: update the body text on every release — keep it short, friendly and emoji-rich.
+          generate_release_notes: false
           body: |
+            ## What's New in v${{ steps.ver.outputs.version }} 🎵
+
+            **Press play — the music just plays.** This update is all about one promise: no more songs dying mid-track, no more "Unknown error / discontinued" screens, no more "Midnight City" refusing to load.
+
+            ### 🎧 Streaming that actually works
+            - 🔥 **Mid-song cut-offs fixed** — tracks no longer stop at random timestamps
+            - 🌃 **"Midnight City" & co. load reliably now** — new multi-client stream fallback (visionOS · Android VR · Web · MWEB) — if one client gets refused, another takes over seamlessly
+            - ⚡ **Buffer-free streaming** — stream URLs are cached and refreshed *before* they expire
+            - 🛡️ **PoToken session recovery** — when YouTube's bot check fails, NomaTune quietly repairs the session and retries instead of giving up
+            - 🧹 Expired / stale stream detection rebuilt from the ground up
+
+            ### 🎶 And the cherry on top
+            - 🤖 Playback engine rebuilt with the latest stream-resolution tech
+            - 📦 Same app, same package, same vibes — just way more reliable
+
+            Thanks for keeping the music going. 💛
           files: release-apks/*.apk

@@ -113,16 +113,9 @@
 
   
 
-  ## ❤️ Credits & Inspiration
+  ## ❤️ Credits
 
-  This project acknowledges and credits @rukamori/ArchiveTune as a primary source of inspiration for design and feature ideas.
-
-  - Repository: https://github.com/rukamori/ArchiveTune
-  - Author: @rukamori
-  - Base framework: ArchiveTune (https://github.com/rukamori/ArchiveTune)
-  - Inspired by: @rukamori/ArchiveTune
-
-  Thank you to rukamori for the inspiration; parts of the UI/UX and some feature concepts were adapted with respect and appreciation. If you are the original author and would like additional attribution or changes, please open an issue or submit a pull request and we'll update this section promptly.
+  This project is built on open-source foundations — third-party attributions are listed in the source file headers. Thank you to every open-source author whose work made this app possible.
 
   
 
