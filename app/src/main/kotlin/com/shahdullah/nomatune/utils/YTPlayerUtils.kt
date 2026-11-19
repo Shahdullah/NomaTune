@@ -28,6 +28,7 @@ import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.ANDROID_
 import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.ANDROID_UNPLUGGED
 import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_43_32
 import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_61_48
+import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_65_10
 import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.ANDROID_VR_NO_AUTH
 import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.IOS
 import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.IPADOS
@@ -138,7 +139,7 @@ object YTPlayerUtils {
      */
     private val STREAM_FALLBACK_CLIENTS: Array<YouTubeClient> = arrayOf(
         VISIONOS,
-        ANDROID_VR_1_61_48,
+        ANDROID_VR_1_65_10,
         WEB_REMIX,
         WEB,
         MWEB,

@@ -81,14 +81,14 @@ data class YouTubeClient(
 
         val WEB = YouTubeClient(
             clientName = "WEB",
-            clientVersion = "2.20260114.00.00",
+            clientVersion = "2.20260708.00.00",
             clientId = "1",
             userAgent = USER_AGENT_WEB,
         )
 
         val WEB_REMIX = YouTubeClient(
             clientName = "WEB_REMIX",
-            clientVersion = "1.20260213.01.00",
+            clientVersion = "1.20260707.12.00",
             clientId = "67",
             userAgent = USER_AGENT_WEB_REMIX,
             loginSupported = true,
@@ -98,7 +98,7 @@ data class YouTubeClient(
 
         val WEB_CREATOR = YouTubeClient(
             clientName = "WEB_CREATOR",
-            clientVersion = "1.20260114.00.00",
+            clientVersion = "1.20260708.06.00",
             clientId = "62",
             userAgent = USER_AGENT_WEB,
             loginSupported = true,
@@ -108,7 +108,7 @@ data class YouTubeClient(
 
         val TVHTML5 = YouTubeClient(
             clientName = "TVHTML5",
-            clientVersion = "7.20260114.00.00",
+            clientVersion = "7.20260707.07.00",
             clientId = "7",
             userAgent = "Mozilla/5.0(SMART-TV; Linux; Tizen 4.0.0.2) AppleWebkit/605.1.15 (KHTML, like Gecko) SamsungBrowser/9.2 TV Safari/605.1.15",
             loginSupported = true,
@@ -129,7 +129,7 @@ data class YouTubeClient(
 
         val IOS = YouTubeClient(
             clientName = "IOS",
-            clientVersion = "19.29.1",
+            clientVersion = "21.26.4",
             clientId = "5",
             userAgent = "com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)",
             osVersion = "17.5.1.21F90",
@@ -137,7 +137,7 @@ data class YouTubeClient(
 
         val MOBILE = YouTubeClient(
             clientName = "ANDROID",
-            clientVersion = "21.10.38",
+            clientVersion = "21.26.364",
             clientId = "3",
             userAgent = "com.google.android.youtube/21.10.38 (Linux; U; Android 15; en_US; Pixel 9 Pro; Build/AP4A.250205.002; Cronet/132.0.6834.79) gzip",
             loginSupported = true,
@@ -154,6 +154,25 @@ data class YouTubeClient(
             deviceMake = "Oculus",
             deviceModel = "Quest 3",
             androidSdkVersion = "32",
+            loginSupported = false,
+            useSignatureTimestamp = false
+        )
+
+
+        val ANDROID_VR_1_65_10 = YouTubeClient(
+            clientName = "ANDROID_VR",
+            clientVersion = "1.65.10",
+            clientId = "28",
+            userAgent = "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1; Cronet/132.0.6808.3)",
+            osName = "Android",
+            osVersion = "12",
+            deviceMake = "Oculus",
+            deviceModel = "Quest 3",
+            androidSdkVersion = "32",
+            buildId = "SQ3A.220605.009.A1",
+            cronetVersion = "132.0.6808.3",
+            packageName = "com.google.android.apps.youtube.vr.oculus",
+            friendlyName = "Android VR 1.65",
             loginSupported = false,
             useSignatureTimestamp = false
         )
@@ -243,7 +262,7 @@ data class YouTubeClient(
 
         val MWEB = YouTubeClient(
             clientName = "MWEB",
-            clientVersion = "2.20260114.00.00",
+            clientVersion = "2.20260708.05.00",
             clientId = "2",
             userAgent = "Mozilla/5.0 (Linux; Android 15; Pixel 9 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36",
             friendlyName = "Mobile Web",
@@ -251,7 +270,7 @@ data class YouTubeClient(
 
         val WEB_SAFARI = YouTubeClient(
             clientName = "WEB",
-            clientVersion = "2.20260114.00.00",
+            clientVersion = "2.20260708.00.00",
             clientId = "1",
             userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15",
             friendlyName = "Web (Safari)",
@@ -259,7 +278,7 @@ data class YouTubeClient(
 
         val WEB_EMBEDDED = YouTubeClient(
             clientName = "WEB_EMBEDDED_PLAYER",
-            clientVersion = "1.20260114.00.00",
+            clientVersion = "1.20260708.06.00",
             clientId = "56",
             userAgent = USER_AGENT_WEB,
             friendlyName = "Web Embedded Player",
@@ -268,7 +287,7 @@ data class YouTubeClient(
 
         val WEB_MUSIC = YouTubeClient(
             clientName = "WEB_REMIX",
-            clientVersion = "1.20260213.01.00",
+            clientVersion = "1.20260707.12.00",
             clientId = "67",
             userAgent = USER_AGENT_WEB_REMIX,
             friendlyName = "Web Music (YouTube Music)",
