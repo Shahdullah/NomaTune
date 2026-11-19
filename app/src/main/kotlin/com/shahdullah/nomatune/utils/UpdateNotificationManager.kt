@@ -106,7 +106,7 @@ object UpdateNotificationManager {
             try {
                 val dataStore = context.dataStore
 
-                val isEnabled = dataStore.data.map { it[EnableUpdateNotificationKey] ?: false }.first()
+                val isEnabled = dataStore.data.map { it[EnableUpdateNotificationKey] ?: true }.first()
                 if (!isEnabled) {
                     cancelPeriodicUpdateCheck(context)
                     return@launch

@@ -35,7 +35,7 @@ class UpdateCheckWorker(
         return try {
             val dataStore = applicationContext.dataStore
 
-            val isEnabled = dataStore.data.map { it[EnableUpdateNotificationKey] ?: false }.first()
+            val isEnabled = dataStore.data.map { it[EnableUpdateNotificationKey] ?: true }.first()
             if (!isEnabled) return Result.success()
 
             val updateChannel = dataStore.data.map {

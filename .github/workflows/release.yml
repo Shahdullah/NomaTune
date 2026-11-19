@@ -218,8 +218,11 @@ jobs:
             - 🛡️ **PoToken session recovery** — when YouTube's bot check fails, NomaTune quietly repairs the session and retries instead of giving up
             - 🧹 Expired / stale stream detection rebuilt from the ground up
 
+            ### 🔔 Easier to keep updated
+            - 🔔 **Update notifications are now ON by default** — NomaTune will ping you when a new release drops (requires notification permission)
+            - 🔑 **Every release is signed with the same signing key** — updates install cleanly over your current version, no reinstall needed
+
             ### 🎶 And the cherry on top
-            - 🤖 Playback engine rebuilt with the latest stream-resolution tech
             - 📦 Same app, same package, same vibes — just way more reliable
 
             Thanks for keeping the music going. 💛
