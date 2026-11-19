@@ -891,14 +891,36 @@ object YTPlayerUtils {
                     clients = botDetectedClients.toSet(),
                 )
             }
-            // Fix for Midnight City (#20): retry once after clearing BotGuard tokens
+            // Fix for Midnight City (#20): retry once with full session refresh (upstream logic)
             if (retryAttempt == 0) {
-                Timber.tag(logTag).w("All stream clients failed for $videoId, clearing BotGuard cache and retrying once")
+                Timber.tag(logTag).w("All stream clients failed for $videoId, refreshing session and retrying once")
                 try {
                     BotGuardTokenGenerator.invalidateAll()
+                    // Reset PoTokens to force regeneration
+                    val resetAuthState = YouTube.currentPlaybackAuthState().copy(
+                        poToken = null,
+                        poTokenGvs = null,
+                        poTokenGvsSession = null,
+                        poTokenGvsVideoId = null,
+                        poTokenPlayer = null,
+                        poTokenPlayerVideoId = null,
+                        poTokenSubs = null,
+                        poTokenSubsVideoId = null,
+                        webClientPoTokenEnabled = false,
+                    ).normalized()
+                    val refreshedAuthState = ensureVisitorDataReady(
+                        videoId = videoId,
+                        authState = resetAuthState,
+                        forceRefresh = true,
+                        reason = "retry Bad stream for $videoId"
+                    )
+                    if (refreshedAuthState.fingerprint != resetAuthState.fingerprint) {
+                        YouTube.authState = refreshedAuthState
+                    }
                     clearPlaybackAuthCaches()
                 } catch (e: Exception) {
-                    Timber.tag(logTag).w(e, "Failed to clear caches for retry")
+                    Timber.tag(logTag).w(e, "Failed to refresh session for retry")
+                    try { BotGuardTokenGenerator.invalidateAll(); clearPlaybackAuthCaches() } catch (_: Exception) {}
                 }
                 return playerResponseForPlaybackOnce(
                     videoId = videoId,
