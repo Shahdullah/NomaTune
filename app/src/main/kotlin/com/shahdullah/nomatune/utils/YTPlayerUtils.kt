@@ -896,16 +896,11 @@ object YTPlayerUtils {
                 Timber.tag(logTag).w("All stream clients failed for $videoId, refreshing session and retrying once")
                 try {
                     BotGuardTokenGenerator.invalidateAll()
-                    // Reset PoTokens to force regeneration
+                    // Reset PoTokens to force regeneration (NomaTune has 4 fields only)
                     val resetAuthState = YouTube.currentPlaybackAuthState().copy(
                         poToken = null,
                         poTokenGvs = null,
-                        poTokenGvsSession = null,
-                        poTokenGvsVideoId = null,
                         poTokenPlayer = null,
-                        poTokenPlayerVideoId = null,
-                        poTokenSubs = null,
-                        poTokenSubsVideoId = null,
                         webClientPoTokenEnabled = false,
                     ).normalized()
                     val refreshedAuthState = ensureVisitorDataReady(
