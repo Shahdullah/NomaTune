@@ -538,6 +538,7 @@ object YTPlayerUtils {
         connectivityManager: ConnectivityManager,
         preferredStreamClient: PlayerStreamClient,
         networkMetered: Boolean?,
+        retryAttempt: Int = 0,
     ): PlaybackData {
         Timber.tag(logTag).i("Fetching player response for videoId: $videoId, playlistId: $playlistId")
         val signatureTimestamp = getSignatureTimestampOrNull(videoId)
@@ -890,7 +891,26 @@ object YTPlayerUtils {
                     clients = botDetectedClients.toSet(),
                 )
             }
-            Timber.tag(logTag).e("Bad stream player response - all clients failed")
+            // Fix for Midnight City (#20): retry once after clearing BotGuard tokens
+            if (retryAttempt == 0) {
+                Timber.tag(logTag).w("All stream clients failed for $videoId, clearing BotGuard cache and retrying once")
+                try {
+                    BotGuardTokenGenerator.invalidateAll()
+                    clearPlaybackAuthCaches()
+                } catch (e: Exception) {
+                    Timber.tag(logTag).w(e, "Failed to clear caches for retry")
+                }
+                return playerResponseForPlaybackOnce(
+                    videoId = videoId,
+                    playlistId = playlistId,
+                    audioQuality = audioQuality,
+                    connectivityManager = connectivityManager,
+                    preferredStreamClient = preferredStreamClient,
+                    networkMetered = networkMetered,
+                    retryAttempt = 1
+                )
+            }
+            Timber.tag(logTag).e("Bad stream player response - all clients failed after retry")
             throw Exception("Bad stream player response")
         }
 
