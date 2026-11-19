@@ -22,24 +22,13 @@ import com.shahdullah.nomatune.innertube.NewPipeUtils
 import com.shahdullah.nomatune.innertube.PlaybackAuthState
 import com.shahdullah.nomatune.innertube.YouTube
 import com.shahdullah.nomatune.innertube.models.YouTubeClient
-import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.IOS
-import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.TVHTML5_SIMPLY_EMBEDDED_PLAYER
-import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.WEB_REMIX
-import com.shahdullah.nomatune.innertube.models.response.PlayerResponse
-import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.ANDROID_CREATOR
-import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.ANDROID_MUSIC
-import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.ANDROID_TESTSUITE
-import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.ANDROID_UNPLUGGED
-import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_43_32
 import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_61_48
-import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.ANDROID_VR_NO_AUTH
-import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.IPADOS
-import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.IOS_MUSIC
-import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.MOBILE
-import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.TVHTML5
+import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.MWEB
 import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.VISIONOS
 import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.WEB
 import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.WEB_CREATOR
+import com.shahdullah.nomatune.innertube.models.YouTubeClient.Companion.WEB_REMIX
+import com.shahdullah.nomatune.innertube.models.response.PlayerResponse
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import timber.log.Timber
@@ -136,23 +125,12 @@ object YTPlayerUtils {
      * Clients used for fallback streams in case the streams of the main client do not work.
      */
     private val STREAM_FALLBACK_CLIENTS: Array<YouTubeClient> = arrayOf(
-        IOS,
-        MOBILE,
-        ANDROID_MUSIC,
-        IOS_MUSIC,
-        ANDROID_VR_NO_AUTH,
-        ANDROID_VR_1_61_48,
-        ANDROID_VR_1_43_32,
-        ANDROID_CREATOR,
-        ANDROID_TESTSUITE,
-        ANDROID_UNPLUGGED,
-        IPADOS,
         VISIONOS,
-        TVHTML5,
-        TVHTML5_SIMPLY_EMBEDDED_PLAYER,
+        ANDROID_VR_1_61_48,
+        WEB_REMIX,
         WEB,
-        WEB_CREATOR,
-        WEB_REMIX
+        MWEB,
+        WEB_CREATOR
     )
     private data class CachedStreamUrl(
         val url: String,

@@ -184,14 +184,6 @@ fun AboutScreen(
         website = "https://nomatune.vercel.app",
         discord = "https://discord.com/users/886971572668219392"
     )
-    val baseFramework = TeamMember(
-        avatarUrl = "https://avatars.githubusercontent.com/u/107134739?v=4",
-        name = "Rukamori",
-        position = stringResource(R.string.about_position_archivetune),
-        profileUrl = "https://github.com/rukamori/ArchiveTune",
-        github = "https://github.com/rukamori/ArchiveTune"
-    )
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -389,23 +381,6 @@ fun AboutScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
             )
-            Spacer(Modifier.height(24.dp))
-
-            SectionHeader(
-                title = stringResource(R.string.about_base_framework),
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            LeadDeveloperCard(
-                member = baseFramework,
-                onOpenUri = uriHandler::openUri,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            )
-
             Spacer(Modifier.height(24.dp))
         }
     }
