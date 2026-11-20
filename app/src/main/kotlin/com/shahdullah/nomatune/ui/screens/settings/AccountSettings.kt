@@ -175,7 +175,7 @@ fun AccountSettings(
     val installLatestUpdate: () -> Unit = {
         accountUpdateScope.launch {
             runCatching {
-                AppUpdateInstaller.downloadAndInstall(context, Updater.getLatestDownloadUrl())
+                AppUpdateInstaller.downloadAndInstall(context, Updater.getLatestDownloadUrl()) { }
             }
         }
     }
