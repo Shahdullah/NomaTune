@@ -33,8 +33,8 @@ android {
     applicationId = "com.shahdullah.nomatune"
         minSdk = 26
         targetSdk = 37
-        versionCode = 30
-        versionName = "1.3.16"
+        versionCode = 31
+        versionName = "1.3.17"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

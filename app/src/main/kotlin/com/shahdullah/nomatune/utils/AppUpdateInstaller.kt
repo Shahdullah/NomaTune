@@ -208,8 +208,8 @@ object AppUpdateInstaller {
     }
 
     private const val UpdateDirectoryName = "app_update"
-    private const val DownloadFileName = "archive-tune-update.download"
-    private const val ApkFileName = "archive-tune-update.apk"
+    private const val DownloadFileName = "nomatune-update.download"
+    private const val ApkFileName = "nomatune-update.apk"
     private const val ApkMimeType = "application/vnd.android.package-archive"
     private const val NetworkTimeoutMs = 30_000
 }

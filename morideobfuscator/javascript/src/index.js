@@ -38,7 +38,10 @@ const AUTHENTICATED_CLIENT = "WEB_CREATOR";
 // returning formats that carry no `url`/`signatureCipher` at all, which used to
 // surface as "No direct audio format". Try progressively more reliable anonymous
 // clients before giving up.
-const ANONYMOUS_CLIENT_FALLBACKS = ["IOS", "ANDROID_VR", "ANDROID"];
+// Ordered by how reliably they serve anonymous audio: IOS and ANDROID hand out
+// direct URLs every time, while ANDROID_VR constantly answers with a bot check
+// ("Sign in to confirm you're not a bot"), so it goes last.
+const ANONYMOUS_CLIENT_FALLBACKS = ["IOS", "ANDROID", "ANDROID_VR"];
 const AUTHENTICATED_CLIENT_VERSION = "1.20260708.06.00";
 const CATALOG_DURATION_TOLERANCE_SECONDS = 2;
 const MAX_CATALOG_REPLACEMENT_CANDIDATES = 5;
@@ -736,6 +739,7 @@ async function prepare(requestJson) {
 
 async function resolveAnonymousWithFallbacks(youtube, request) {
   let failure;
+  let loginRequired;
   for (const client of [ANONYMOUS_CLIENT, ...ANONYMOUS_CLIENT_FALLBACKS]) {
     try {
       const value = await resolveWithClient(youtube, request, client);
@@ -744,11 +748,22 @@ async function resolveAnonymousWithFallbacks(youtube, request) {
       }
       return value;
     } catch (error) {
-      if (failureKind(error) === "LOGIN_REQUIRED" || failureKind(error) === "TIMEOUT") throw error;
+      const kind = failureKind(error);
+      if (kind === "TIMEOUT") throw error;
+      // ONE anonymous client answering LOGIN_REQUIRED is not proof that the
+      // track needs an account: the bot check ("Sign in to confirm you're not
+      // a bot") comes and goes per client, and aborting here is what surfaced
+      // "Confirm playback in YouTube Music" for songs that other anonymous
+      // clients stream happily. Remember it, but keep trying the rest.
+      if (kind === "LOGIN_REQUIRED") {
+        loginRequired ??= error;
+        continue;
+      }
       failure ??= error;
     }
   }
-  throw failure;
+  // Genuinely unplayable anonymously only if every client demanded a sign-in.
+  throw failure ?? loginRequired;
 }
 
 async function resolveForRequest(youtube, request, client) {

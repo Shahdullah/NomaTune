@@ -76,6 +76,8 @@ import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.SplitButtonDefaults
 import androidx.compose.material3.SplitButtonLayout
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -171,11 +173,24 @@ fun AccountSettings(
     val context = LocalContext.current
     val accountUpdateScope = rememberCoroutineScope()
 
+    val accountSnackbarHost = remember { SnackbarHostState() }
+    val downloadingLabel = stringResource(R.string.update_downloading)
+    val downloadFailedLabel = stringResource(R.string.update_download_failed)
+
     // In-app update: download the release APK and open the package installer.
+    // Failures used to be swallowed, which looked like "nothing happens" when the
+    // download could not start (no network, permission, resolver). Always tell
+    // the user something.
     val installLatestUpdate: () -> Unit = {
         accountUpdateScope.launch {
-            runCatching {
-                AppUpdateInstaller.downloadAndInstall(context, Updater.getLatestDownloadUrl()) { }
+            accountSnackbarHost.showSnackbar(downloadingLabel)
+            val result =
+                runCatching {
+                    AppUpdateInstaller.downloadAndInstall(context, Updater.getLatestDownloadUrl()) { }
+                }.getOrElse { Result.failure(it) }
+            accountSnackbarHost.currentSnackbarData?.dismiss()
+            result.onFailure {
+                accountSnackbarHost.showSnackbar(downloadFailedLabel)
             }
         }
     }
@@ -290,6 +305,7 @@ fun AccountSettings(
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.surface,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = { SnackbarHost(accountSnackbarHost) },
         topBar = {
             LargeFlexibleTopAppBar(
                 title = {

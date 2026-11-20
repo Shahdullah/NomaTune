@@ -627,25 +627,68 @@ class MainActivity : ComponentActivity() {
 
                         Spacer(Modifier.height(12.dp))
 
+                        var updateSheetProgress by remember { mutableStateOf<Float?>(null) }
+                        var updateSheetFailure by remember { mutableStateOf<String?>(null) }
+                        val downloadFailedLabel = stringResource(R.string.update_download_failed)
+
                         androidx.compose.material3.Button(
                             onClick = {
                                 mainActivityUpdateScope.launch {
-                                    try {
-                                        val downloadUrl = when (updateChannel) {
-                                            UpdateChannel.DAILY_NIGHTLY -> Updater.getLatestDailyNightlyDownloadUrl()
-                                            UpdateChannel.NIGHTLY -> Updater.getLatestNightlyDownloadUrl()
-                                            UpdateChannel.STABLE -> Updater.getLatestDownloadUrl()
-                                        }
-                                        // Download and hand the APK to the package installer
-                                        // directly - never bounce the user to github.com.
-                                        AppUpdateInstaller.downloadAndInstall(mainActivityContext, downloadUrl) {}
-                                    } catch (_: Exception) {}
+                                    updateSheetFailure = null
+                                    updateSheetProgress = 0f
+                                    val result =
+                                        runCatching {
+                                            val downloadUrl = when (updateChannel) {
+                                                UpdateChannel.DAILY_NIGHTLY -> Updater.getLatestDailyNightlyDownloadUrl()
+                                                UpdateChannel.NIGHTLY -> Updater.getLatestNightlyDownloadUrl()
+                                                UpdateChannel.STABLE -> Updater.getLatestDownloadUrl()
+                                            }
+                                            // Download and hand the APK to the package installer
+                                            // directly - never bounce the user to github.com.
+                                            AppUpdateInstaller.downloadAndInstall(
+                                                mainActivityContext,
+                                                downloadUrl,
+                                            ) { progress ->
+                                                updateSheetProgress = progress.fraction
+                                            }
+                                        }.getOrElse { Result.failure(it) }
+                                    updateSheetProgress = null
+                                    // A silent failure here looked like a dead button.
+                                    result.onFailure { error ->
+                                        updateSheetFailure = error.message ?: downloadFailedLabel
+                                    }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
                             shapes = ButtonDefaults.shapes(),
                         ) {
-                            Text(text = stringResource(R.string.update_text))
+                            Text(
+                                text = stringResource(R.string.update_text),
+                                modifier = if (updateSheetProgress != null) {
+                                    Modifier.fillMaxWidth(0.6f)
+                                } else {
+                                    Modifier
+                                },
+                                maxLines = 1,
+                            )
+                        }
+
+                        updateSheetProgress?.let { fraction ->
+                            Spacer(Modifier.height(8.dp))
+                            androidx.compose.material3.LinearProgressIndicator(
+                                progress = { fraction },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+
+                        updateSheetFailure?.let { message ->
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
                     }
 
