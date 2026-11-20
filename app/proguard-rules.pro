@@ -37,6 +37,26 @@
 -keep class com.shahdullah.nomatune.utils.potoken.** { *; }
 -keep class com.shahdullah.nomatune.morideobfuscator.youtubei.** { *; }
 
+# Skip R8's class-level optimisation pass. It is what mis-dexed the coroutine
+# state machine above; obfuscation and shrinking stay enabled below.
+-dontoptimize
+
+# VerifyError hardening (crash on v1.3.14, Android 15 / ART):
+#   java.lang.VerifyError: App$newImageLoader$1.invokeSuspend failed to verify:
+#   'this' argument 'Uninitialized Reference: org.json.JSONException' not instance of
+#   'Reference: java.lang.RuntimeException'
+# R8's full-mode optimizer can mis-dex Kotlin coroutine state machines and their
+# exception ranges. Keep the coroutine/continuation scaffolding the optimizer needs
+# to understand, and skip the class-level optimisation pass that produced the bad
+# bytecode. Obfuscation stays off, so nothing user-visible changes.
+-keep class kotlin.coroutines.** { *; }
+-keep class kotlinx.coroutines.** { *; }
+-keepclassmembers class kotlinx.coroutines.** { *; }
+-keepclassmembers class * extends kotlin.coroutines.jvm.internal.ContinuationImpl { *; }
+-keepclassmembers class * extends kotlin.coroutines.jvm.internal.BaseContinuationImpl { *; }
+-keepclassmembers class **$* implements kotlin.coroutines.Continuation { *; }
+-keep class org.json.** { *; }
+
 ## Kotlin Serialization
 # Keep `Companion` object fields of serializable classes.
 # This avoids serializer lookup through `getDeclaredClasses` as done for named companion objects.

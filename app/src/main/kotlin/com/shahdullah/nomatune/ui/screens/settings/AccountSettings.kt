@@ -89,6 +89,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -102,7 +103,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
+import kotlinx.coroutines.launch
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -137,6 +138,7 @@ import com.shahdullah.nomatune.ui.screens.buildLoginRoute
 import com.shahdullah.nomatune.ui.utils.backToMain
 import com.shahdullah.nomatune.utils.PreferenceStore
 import com.shahdullah.nomatune.utils.SavedAccount
+import com.shahdullah.nomatune.utils.AppUpdateInstaller
 import com.shahdullah.nomatune.utils.Updater
 import com.shahdullah.nomatune.utils.dataStore
 import com.shahdullah.nomatune.utils.decodeSavedAccounts
@@ -167,7 +169,16 @@ fun AccountSettings(
     latestVersionName: String,
 ) {
     val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
+    val accountUpdateScope = rememberCoroutineScope()
+
+    // In-app update: download the release APK and open the package installer.
+    val installLatestUpdate: () -> Unit = {
+        accountUpdateScope.launch {
+            runCatching {
+                AppUpdateInstaller.downloadAndInstall(context, Updater.getLatestDownloadUrl())
+            }
+        }
+    }
 
     val accountLabel = stringResource(R.string.account)
     val generalLabel = stringResource(R.string.general)
@@ -325,7 +336,7 @@ fun AccountSettings(
                             },
                         ) {
                             OutlinedIconButton(
-                                onClick = { uriHandler.openUri(Updater.getLatestDownloadUrl()) },
+                                onClick = installLatestUpdate,
                                 colors = IconButtonDefaults.outlinedIconButtonColors(
                                     containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                                     contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -404,7 +415,7 @@ fun AccountSettings(
                 item {
                     UpdateBannerStrip(
                         latestVersion = latestVersionName,
-                        onClick = { uriHandler.openUri(Updater.getLatestDownloadUrl()) },
+                        onClick = installLatestUpdate,
                     )
                 }
             }

@@ -29,6 +29,8 @@ import io.ktor.client.request.headers
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 
 data class GitCommit(
@@ -57,7 +59,6 @@ private data class ReleasesNetworkResult(
 object Updater {
     private val client = HttpClient()
     private const val ReleaseCacheCheckIntervalMs: Long = 6 * 60 * 60 * 1000L
-    private const val StableDownloadUrl = "https://github.com/Shahdullah/NomaTune/releases/latest"
     private const val DailyNightlyDownloadUrl =
         "https://github.com/NomaTuneApp/daily-nightly/releases/latest"
     fun isUpdateAvailable(latestVersion: String, currentVersion: String): Boolean {
@@ -348,16 +349,43 @@ object Updater {
             commits
         }
 
-    fun getLatestDownloadUrl(): String {
-        if (!isUpdaterDistribution) {
-            return ""
-        }
+    /**
+     * Always a *direct* APK asset URL — never the GitHub release page.
+     *
+     * The in-app updater downloads and installs this file itself, so bouncing the
+     * user to github.com (which is what happened before) is never acceptable.
+     * [latestReleaseTag] is filled in by any update check; when it is still null we
+     * look the newest tag up on demand and fall back to a locally computed tag.
+     */
+    suspend fun getLatestDownloadUrl(): String {
+        if (!isUpdaterDistribution) return ""
+        val tag = resolveLatestReleaseTag()
+        return UpdateApkFetcher.directApkUrl(
+            tag = tag,
+            device = BuildConfig.DEVICE,
+            architecture = BuildConfig.ARCHITECTURE,
+            distributionPrefix = distributionArtifactPrefix,
+        )
+    }
 
-        val tag = latestReleaseTag
-        if (tag != null) {
-            return "https://github.com/Shahdullah/NomaTune/releases/download/$tag/app-$distributionArtifactPrefix${BuildConfig.DEVICE}-${BuildConfig.ARCHITECTURE}-release.apk"
-        }
-        return StableDownloadUrl
+    /** Blocking variant for notification actions, which cannot suspend. */
+    fun getLatestDownloadUrlBlocking(): String {
+        if (!isUpdaterDistribution) return ""
+        val tag = latestReleaseTag ?: runBlocking(Dispatchers.IO) { resolveLatestReleaseTag() }
+        return UpdateApkFetcher.directApkUrl(
+            tag = tag,
+            device = BuildConfig.DEVICE,
+            architecture = BuildConfig.ARCHITECTURE,
+            distributionPrefix = distributionArtifactPrefix,
+        )
+    }
+
+    private suspend fun resolveLatestReleaseTag(): String {
+        latestReleaseTag?.let { return it }
+        return runCatching { getLatestReleaseInfo().getOrThrow().tagName }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: "v${BuildConfig.VERSION_NAME}"
     }
 
     fun getLatestNightlyDownloadUrl(): String {

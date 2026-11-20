@@ -314,16 +314,23 @@ class App : Application(), SingletonImageLoader.Factory {
         val smartTrimmer = dataStore[SmartTrimmerKey] ?: false
         val imageCacheConfig = resolveImageDiskCacheConfig(dataStore[MaxImageCacheSizeKey])
 
-        val diskCache = DiskCache.Builder()
-            .directory(StorageLocationRepository.cacheDirectory(this, StorageFolderKind.IMAGE_CACHE))
-            .maxSizeBytes(imageCacheConfig.maxSizeBytes)
-            .build()
+        // Kept as an explicit local (build + attach separated) rather than one long
+        // chained expression: the chained form produced a coroutine lambda that R8
+        // mis-dexed into unverifiable bytecode (java.lang.VerifyError on launch,
+        // "Uninitialized Reference: org.json.JSONException" in
+        // App$newImageLoader$1.invokeSuspend).
+        val diskCacheBuilder =
+            DiskCache.Builder()
+                .directory(StorageLocationRepository.cacheDirectory(this, StorageFolderKind.IMAGE_CACHE))
+                .maxSizeBytes(imageCacheConfig.maxSizeBytes)
+        val diskCache = diskCacheBuilder.build()
 
         if (smartTrimmer && imageCacheConfig.policy == CachePolicy.ENABLED && didRunImageCacheTrim.compareAndSet(false, true)) {
             applicationScope.launch(Dispatchers.IO) { trimImageDiskCache(diskCache) }
         }
 
-        return ImageLoader.Builder(this)
+        return ImageLoader
+            .Builder(this)
             .crossfade(true)
             .allowHardware(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
             .diskCache(diskCache)

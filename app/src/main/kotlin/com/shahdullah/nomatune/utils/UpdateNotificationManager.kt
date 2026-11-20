@@ -17,7 +17,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -44,7 +43,7 @@ import com.shahdullah.nomatune.constants.UpdateChannelKey
 import java.util.concurrent.TimeUnit
 
 object UpdateNotificationManager {
-    private const val CHANNEL_ID = "update_notification_channel"
+    internal const val CHANNEL_ID = "update_notification_channel"
     private const val NOTIFICATION_ID = 9999
     private const val WORK_NAME = "update_check_work"
     private const val CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
@@ -183,12 +182,18 @@ object UpdateNotificationManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // The Download action must actually download: never open github.com here.
+        // This is a broadcast so the download+install happens in-app and the
+        // package installer is launched directly when it finishes.
         val downloadUrl = when (updateChannel) {
             UpdateChannel.DAILY_NIGHTLY -> Updater.getLatestDailyNightlyDownloadUrl()
-            else -> Updater.getLatestDownloadUrl()
+            else -> Updater.getLatestDownloadUrlBlocking()
         }
-        val downloadIntent = Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl))
-        val downloadPendingIntent = PendingIntent.getActivity(
+        val downloadIntent = Intent(context, UpdateInstallReceiver::class.java).apply {
+            action = UpdateInstallReceiver.ACTION_INSTALL_UPDATE
+            putExtra(UpdateInstallReceiver.EXTRA_DOWNLOAD_URL, downloadUrl)
+        }
+        val downloadPendingIntent = PendingIntent.getBroadcast(
             context,
             1,
             downloadIntent,

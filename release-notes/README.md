@@ -1,7 +1,7 @@
 # Release Notes
 
 Each NomaTune release publishes the contents of `release-notes/v<version>.md`
-as the GitHub Release body (ArchiveTune-style format).
+as the GitHub Release body (NomaTune release-notes format).
 
 ## How it works
 
@@ -22,7 +22,7 @@ creating the GitHub Release:
 
 ## Writing style
 
-Adapted from ArchiveTune's release format, titled for NomaTune:
+NomaTune release-notes format:
 
 - One-paragraph summary at the top (what this release is about)
 - `## ✨ Highlights` with `###` subsections per area
@@ -34,3 +34,10 @@ Adapted from ArchiveTune's release format, titled for NomaTune:
 
 Keep the voice user-facing: describe what a listener noticed and what is fixed
 now, not the mechanics alone.
+
+## Style rules
+
+- Never mention other apps or projects by name in the notes — write only about
+  NomaTune, in NomaTune's voice.
+- Keep code identifiers, file names and class names out of the headline bullets;
+  put them in the optional technical summary instead.

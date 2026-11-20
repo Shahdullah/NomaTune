@@ -114,6 +114,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -287,6 +288,7 @@ import com.shahdullah.nomatune.ui.utils.appBarScrollBehavior
 import com.shahdullah.nomatune.ui.utils.backToMain
 import com.shahdullah.nomatune.ui.utils.resetHeightOffset
 import com.shahdullah.nomatune.utils.SyncUtils
+import com.shahdullah.nomatune.utils.AppUpdateInstaller
 import com.shahdullah.nomatune.utils.Updater
 import com.shahdullah.nomatune.utils.dataStore
 import com.shahdullah.nomatune.utils.get
@@ -566,6 +568,8 @@ class MainActivity : ComponentActivity() {
                     val bottomSheetPageState = remember { com.shahdullah.nomatune.ui.component.BottomSheetPageState() }
                     val menuState = remember { com.shahdullah.nomatune.ui.component.MenuState() }
                     val uriHandler = LocalUriHandler.current
+                    val mainActivityUpdateScope = rememberCoroutineScope()
+                    val mainActivityContext = LocalContext.current
                     val releaseNotesState = remember { mutableStateOf<String?>(null) }
                     val updateSheetContent: @Composable ColumnScope.() -> Unit = { // receiver: ColumnScope
                         Text(
@@ -625,14 +629,18 @@ class MainActivity : ComponentActivity() {
 
                         androidx.compose.material3.Button(
                             onClick = {
-                                try {
-                                    val downloadUrl = when (updateChannel) {
-                                        UpdateChannel.DAILY_NIGHTLY -> Updater.getLatestDailyNightlyDownloadUrl()
-                                        UpdateChannel.NIGHTLY -> Updater.getLatestNightlyDownloadUrl()
-                                        UpdateChannel.STABLE -> Updater.getLatestDownloadUrl()
-                                    }
-                                    uriHandler.openUri(downloadUrl)
-                                } catch (_: Exception) {}
+                                mainActivityUpdateScope.launch {
+                                    try {
+                                        val downloadUrl = when (updateChannel) {
+                                            UpdateChannel.DAILY_NIGHTLY -> Updater.getLatestDailyNightlyDownloadUrl()
+                                            UpdateChannel.NIGHTLY -> Updater.getLatestNightlyDownloadUrl()
+                                            UpdateChannel.STABLE -> Updater.getLatestDownloadUrl()
+                                        }
+                                        // Download and hand the APK to the package installer
+                                        // directly - never bounce the user to github.com.
+                                        AppUpdateInstaller.downloadAndInstall(mainActivityContext, downloadUrl) {}
+                                    } catch (_: Exception) {}
+                                }
                             },
                             modifier = Modifier.fillMaxWidth(),
                             shapes = ButtonDefaults.shapes(),

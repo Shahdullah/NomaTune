@@ -844,6 +844,9 @@
     <string name="update_notification_text">NomaTune %s is now available</string>
     <string name="download">Download</string>
     <string name="download_complete">Download complete</string>
+    <string name="update_downloading">Downloading the update…</string>
+    <string name="update_download_failed">Update download failed. Please try again.</string>
+    <string name="update_install_permission_required">Allow NomaTune to install unknown apps to finish the update</string>
     <string name="permissions_title">Allow NomaTune to work best</string>
     <string name="permissions_subtitle">We use a few permissions to play and manage your music reliably. You can change these anytime in system settings.</string>
     <string name="permission_storage_title">Storage access</string>

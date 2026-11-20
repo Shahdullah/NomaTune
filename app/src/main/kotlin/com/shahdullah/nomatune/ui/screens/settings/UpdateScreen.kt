@@ -282,15 +282,26 @@ fun UpdateScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        val downloadUrl =
-            when (updateChannel) {
-                UpdateChannel.DAILY_NIGHTLY -> Updater.getLatestDailyNightlyDownloadUrl()
-                UpdateChannel.NIGHTLY -> Updater.getLatestNightlyDownloadUrl()
-                else -> Updater.getLatestDownloadUrl()
-            }
-
+        // Resolve the direct APK URL when the button is pressed so a download can
+        // never fall back to the GitHub release page.
         Button(
-            onClick = { installUpdate(downloadUrl) },
+            onClick = {
+                coroutineScope.launch {
+                    val downloadUrl =
+                        runCatching {
+                            when (updateChannel) {
+                                UpdateChannel.DAILY_NIGHTLY -> Updater.getLatestDailyNightlyDownloadUrl()
+                                UpdateChannel.NIGHTLY -> Updater.getLatestNightlyDownloadUrl()
+                                else -> Updater.getLatestDownloadUrl()
+                            }
+                        }.getOrElse { error ->
+                            updateSheetError = error.message ?: context.getString(R.string.error_unknown)
+                            showUpdateErrorDialog = true
+                            return@launch
+                        }
+                    installUpdate(downloadUrl)
+                }
+            },
             modifier = Modifier.fillMaxWidth(),
             shapes = ButtonDefaults.shapes(),
         ) {
