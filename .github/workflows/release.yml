@@ -206,7 +206,7 @@ jobs:
           mkdir -p .release-notes
           OUT=".release-notes/v${VER}.md"
           if [ -f "release-notes/v${VER}.md" ]; then
-            # Curated notes for this release (ArchiveTune-style format).
+            # Curated notes for this release.
             cp "release-notes/v${VER}.md" "$OUT"
           else
             # Fallback: generate notes from commits since the previous tag so a
@@ -250,7 +250,7 @@ jobs:
           name: NomaTune v${{ steps.ver.outputs.version }}
           draft: false
           prerelease: false
-          # Release notes come from release-notes/v<version>.md (ArchiveTune-style
+          # Release notes come from release-notes/v<version>.md (house
           # format: Highlights / sections / Contributors / Full Changelog), with an
           # automatic commit-based fallback built in the previous step.
           generate_release_notes: false

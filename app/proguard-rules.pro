@@ -12,8 +12,8 @@
 #   public *;
 #}
 
-# Keep readable stack traces in release builds (matches the upstream ArchiveTune
-# release configuration) so playback failures stay diagnosable from a user report.
+# Keep readable stack traces in release builds so playback failures stay
+# diagnosable from a user report.
 -keepattributes SourceFile,LineNumberTable
 
 # If you keep the line number information, uncomment this to
@@ -27,7 +27,7 @@
 #  - LoginScreen's WebView bridge (@JavascriptInterface `Android`)
 #  - youtubei.js <-> QuickJS binding names and Kotlin serialization models
 # Renaming them silently breaks anonymous playback (PoToken minting fails),
-# therefore obfuscation stays disabled exactly like upstream ArchiveTune.
+# therefore obfuscation stays disabled.
 -dontobfuscate
 
 # Defensive: WebView JavaScript interface methods must never be renamed/stripped.
