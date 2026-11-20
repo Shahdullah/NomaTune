@@ -459,8 +459,8 @@
     <string name="playback_requires_youtube_music_confirmation">Confirm playback in YouTube Music, then return to NomaTune.</string>
     <string name="playback_login_refresh_required">Refresh YouTube Music login</string>
     <string name="playback_requires_youtube_music_login_refresh">Refresh your YouTube Music login, then return to NomaTune.</string>
-    <string name="sign_in_required_title">Sign in to YouTube Music</string>
-    <string name="sign_in_required_reason">You are not signed in to YouTube Music, so songs cannot stream right now. Tap Login below, finish signing in, then come back to NomaTune and press Retry.</string>
+    <string name="sign_in_required_title">Playback unavailable</string>
+    <string name="sign_in_required_reason">NomaTune could not get an audio stream for this track. Playing it usually works without signing in — press Retry first. If this track is age-restricted, private or members-only, signing in to YouTube Music is required.</string>
     <string name="could_not_open_youtube_music">Could not open YouTube Music</string>
     <string name="playback_error_code">Code</string>
     <string name="playback_error_http">HTTP</string>

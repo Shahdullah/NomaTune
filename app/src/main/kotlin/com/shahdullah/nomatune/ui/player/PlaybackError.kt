@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
@@ -70,27 +71,32 @@ fun PlaybackError(
     val copiedText = stringResource(R.string.copied)
     val openYouTubeMusicText = stringResource(R.string.open_youtube_music)
     val loginText = stringResource(R.string.login)
+    val signInToYouTubeMusicText = stringResource(R.string.login)
     val couldNotOpenYouTubeMusicText = stringResource(R.string.could_not_open_youtube_music)
     val errorInfo = remember(error) { error.toPlaybackErrorInfo() }
     val httpCode = errorInfo.httpCode
     val innerTubeCookie by rememberPreference(InnerTubeCookieKey, "")
     val dataSyncId by rememberPreference(DataSyncIdKey, "")
-    // YouTube now blocks anonymous playback. If the app has no usable login
-    // context, the only way songs can stream is to sign in to YouTube Music
-    // inside NomaTune - route the error dialog to the in-app login WebView.
+    // Anonymous playback is the default and expected path: songs stream without
+    // signing in, exactly like upstream ArchiveTune. Only fall back to a login
+    // prompt when the track itself cannot be played anonymously (age-gated,
+    // private, members-only), so a transient stream failure never bullies the
+    // user into signing in. A signed-out failure therefore offers Retry first.
     val isSignedIn = hasYouTubeLoginCookie(innerTubeCookie) && dataSyncId.isNotBlank()
     val requiresSignIn =
+        errorInfo.kind == PlaybackErrorKind.ConfirmationRequired && isSignedIn
+    val anonymousUnavailable =
         errorInfo.kind == PlaybackErrorKind.ConfirmationRequired && !isSignedIn
     val title =
         when {
-            requiresSignIn -> stringResource(R.string.sign_in_required_title)
+            anonymousUnavailable -> stringResource(R.string.sign_in_required_title)
             errorInfo.kind == PlaybackErrorKind.LoginRefreshRequired -> stringResource(R.string.playback_login_refresh_required)
             errorInfo.kind == PlaybackErrorKind.ConfirmationRequired -> stringResource(R.string.playback_confirmation_required)
             else -> fallbackUnknown
         }
     val reason =
         when {
-            requiresSignIn -> stringResource(R.string.sign_in_required_reason)
+            anonymousUnavailable -> stringResource(R.string.sign_in_required_reason)
             errorInfo.kind == PlaybackErrorKind.LoginRefreshRequired -> stringResource(R.string.playback_requires_youtube_music_login_refresh)
             errorInfo.kind == PlaybackErrorKind.ConfirmationRequired -> stringResource(R.string.playback_requires_youtube_music_confirmation)
             errorInfo.kind == PlaybackErrorKind.NoInternet -> fallbackNoInternet
@@ -180,12 +186,15 @@ fun PlaybackError(
                 )
             }
 
-            val recoveryUrl = errorInfo.loginRecoveryUrl
+            // Signed-out users get Retry first; signing in stays optional and is
+            // only offered when the track genuinely needs an account.
+            val recoveryUrl =
+                errorInfo.loginRecoveryUrl ?: if (anonymousUnavailable) YOUTUBE_MUSIC_LOGIN_URL else null
             val recoveryAction =
-                if (requiresSignIn && errorInfo.loginRecoveryUrl != null) {
-                    PlaybackRecoveryAction.RefreshLogin
-                } else {
-                    errorInfo.recoveryAction
+                when {
+                    anonymousUnavailable -> PlaybackRecoveryAction.RefreshLogin
+                    requiresSignIn && errorInfo.loginRecoveryUrl != null -> PlaybackRecoveryAction.RefreshLogin
+                    else -> errorInfo.recoveryAction
                 }
             if (recoveryUrl != null && recoveryAction != null) {
                 Button(
@@ -218,7 +227,8 @@ fun PlaybackError(
                 ) {
                     Text(
                         text = when (recoveryAction) {
-                            PlaybackRecoveryAction.RefreshLogin -> loginText
+                            PlaybackRecoveryAction.RefreshLogin ->
+                                if (anonymousUnavailable) signInToYouTubeMusicText else loginText
                             PlaybackRecoveryAction.OpenYouTubeMusic -> openYouTubeMusicText
                         }
                     )
@@ -264,3 +274,6 @@ fun PlaybackError(
         }
     }
 }
+
+private const val YOUTUBE_MUSIC_LOGIN_URL =
+    "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fmusic.youtube.com"

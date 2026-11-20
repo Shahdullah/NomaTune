@@ -5638,14 +5638,14 @@ private fun onMediaItemTransitionInternal() {
                         )
                     } catch (primaryFailure: Throwable) {
                         if (primaryFailure is CancellationException ||
-                            primaryFailure is YTPlayerUtils.InvalidPlaybackLoginContextException ||
-                            primaryFailure is YTPlayerUtils.LoginRequiredForPlaybackException
+                            primaryFailure is YTPlayerUtils.InvalidPlaybackLoginContextException
                         ) {
                             throw primaryFailure
                         }
                         if (primaryFailure !is YoutubeiException &&
                             primaryFailure !is YTPlayerUtils.BadStreamPlayerResponseException &&
-                            primaryFailure !is YTPlayerUtils.BotDetectionPlaybackException
+                            primaryFailure !is YTPlayerUtils.BotDetectionPlaybackException &&
+                            primaryFailure !is YTPlayerUtils.LoginRequiredForPlaybackException
                         ) {
                             throw primaryFailure
                         }

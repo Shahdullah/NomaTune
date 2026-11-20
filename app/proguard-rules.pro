@@ -12,13 +12,30 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep readable stack traces in release builds (matches the upstream ArchiveTune
+# release configuration) so playback failures stay diagnosable from a user report.
+-keepattributes SourceFile,LineNumberTable
 
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Do not rename classes, methods or fields in release builds.
+#
+# NomaTune resolves several members reflectively / by name at runtime:
+#  - BotGuardTokenGenerator's WebView bridge (@JavascriptInterface `BotGuardBridge`)
+#  - LoginScreen's WebView bridge (@JavascriptInterface `Android`)
+#  - youtubei.js <-> QuickJS binding names and Kotlin serialization models
+# Renaming them silently breaks anonymous playback (PoToken minting fails),
+# therefore obfuscation stays disabled exactly like upstream ArchiveTune.
+-dontobfuscate
+
+# Defensive: WebView JavaScript interface methods must never be renamed/stripped.
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+-keep class com.shahdullah.nomatune.utils.potoken.** { *; }
+-keep class com.shahdullah.nomatune.morideobfuscator.youtubei.** { *; }
 
 ## Kotlin Serialization
 # Keep `Companion` object fields of serializable classes.

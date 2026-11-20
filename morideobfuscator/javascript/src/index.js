@@ -33,6 +33,12 @@ const SUPPORTED_AUDIO_MIME_TYPES = new Set([
 ]);
 const ANONYMOUS_CLIENT = "MWEB";
 const AUTHENTICATED_CLIENT = "WEB_CREATOR";
+// Signed-out playback: YouTube only hands out direct (non-server-Abr) audio URLs
+// to a subset of clients. MWEB/WEB frequently answer playabilityStatus OK while
+// returning formats that carry no `url`/`signatureCipher` at all, which used to
+// surface as "No direct audio format". Try progressively more reliable anonymous
+// clients before giving up.
+const ANONYMOUS_CLIENT_FALLBACKS = ["IOS", "ANDROID_VR", "ANDROID"];
 const AUTHENTICATED_CLIENT_VERSION = "1.20260708.06.00";
 const CATALOG_DURATION_TOLERANCE_SECONDS = 2;
 const MAX_CATALOG_REPLACEMENT_CANDIDATES = 5;
@@ -630,13 +636,11 @@ async function resolveWithClient(youtube, request, client, preparedInfo) {
     error.videoInfo = info;
     throw error;
   }
-  const formats = [
-    ...(info.streaming_data?.adaptive_formats || []),
-    ...(info.streaming_data?.formats || []),
-  ].filter(isEligibleAudioFormat);
+  const formats = collectAudioFormats(info);
   if (formats.length === 0) {
     const error = new Error(reason || "No direct audio format");
     error.kind = "NO_FORMAT";
+    error.videoInfo = info;
     throw error;
   }
 
@@ -704,6 +708,13 @@ async function resolveWithClient(youtube, request, client, preparedInfo) {
   };
 }
 
+function collectAudioFormats(info) {
+  return [
+    ...(info?.streaming_data?.adaptive_formats || []),
+    ...(info?.streaming_data?.formats || []),
+  ].filter(isEligibleAudioFormat);
+}
+
 function parseRequest(requestJson) {
   const request = JSON.parse(requestJson);
   if (!/^[A-Za-z0-9_-]{6,32}$/.test(String(request.mediaId || ""))) {
@@ -723,6 +734,35 @@ async function prepare(requestJson) {
   }
 }
 
+async function resolveAnonymousWithFallbacks(youtube, request) {
+  let failure;
+  for (const client of [ANONYMOUS_CLIENT, ...ANONYMOUS_CLIENT_FALLBACKS]) {
+    try {
+      const value = await resolveWithClient(youtube, request, client);
+      if (client !== ANONYMOUS_CLIENT) {
+        console.info(`Resolved ${request.mediaId} with anonymous fallback client ${client}`);
+      }
+      return value;
+    } catch (error) {
+      if (failureKind(error) === "LOGIN_REQUIRED" || failureKind(error) === "TIMEOUT") throw error;
+      failure ??= error;
+    }
+  }
+  throw failure;
+}
+
+async function resolveForRequest(youtube, request, client) {
+  let value;
+  try {
+    value = await resolveWithClient(youtube, request, client);
+  } catch (error) {
+    if (failureKind(error) !== "UNAVAILABLE" || !error.videoInfo) throw error;
+    value = await resolveCatalogReplacement(youtube, request, error.videoInfo);
+    if (!value) throw error;
+  }
+  return value;
+}
+
 async function resolvePrepared(requestJson) {
   try {
     const request = parseRequest(requestJson);
@@ -734,14 +774,9 @@ async function resolvePrepared(requestJson) {
     }
     const authenticated = Boolean(normalizedString(request.cookie));
     const client = authenticated ? AUTHENTICATED_CLIENT : ANONYMOUS_CLIENT;
-    let value;
-    try {
-      value = await resolveWithClient(session, request, client);
-    } catch (error) {
-      if (failureKind(error) !== "UNAVAILABLE" || !error.videoInfo) throw error;
-      value = await resolveCatalogReplacement(session, request, error.videoInfo);
-      if (!value) throw error;
-    }
+    const value = authenticated || client === AUTHENTICATED_CLIENT
+      ? await resolveForRequest(session, request, client)
+      : await resolveAnonymousWithFallbacks(session, request);
     return JSON.stringify({ ok: true, value });
   } catch (error) {
     return JSON.stringify({
