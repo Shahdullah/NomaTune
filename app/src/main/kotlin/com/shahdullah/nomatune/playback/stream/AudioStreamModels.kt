@@ -34,6 +34,9 @@ data class AudioStreamRequest(
     val authState: PlaybackAuthState,
     val pinnedFormatId: Int? = null,
     val requiresSongMetadata: Boolean = false,
+    // Kept for parity with the upstream resolver contract; NomaTune has no
+    // audio-module system, so this is accepted and ignored.
+    val allowModules: Boolean = true,
 )
 
 data class ResolvedAudioStream(

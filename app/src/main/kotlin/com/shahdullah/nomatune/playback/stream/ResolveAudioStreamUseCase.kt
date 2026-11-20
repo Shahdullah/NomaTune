@@ -14,8 +14,24 @@ package com.shahdullah.nomatune.playback.stream
 
 import android.content.Context
 import android.os.Looper
+import android.os.SystemClock
 import androidx.annotation.WorkerThread
 import androidx.datastore.preferences.core.edit
+import dagger.hilt.android.qualifiers.ApplicationContext
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.plugins.ResponseException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.guava.future
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import com.shahdullah.nomatune.constants.DataSyncIdKey
 import com.shahdullah.nomatune.innertube.PlaybackAuthState
 import com.shahdullah.nomatune.innertube.YouTube
@@ -26,24 +42,16 @@ import com.shahdullah.nomatune.utils.YTPlayerUtils
 import com.shahdullah.nomatune.utils.dataStore
 import com.shahdullah.nomatune.utils.potoken.BotGuardTokenGenerator
 import com.shahdullah.nomatune.utils.toPlaybackAuthState
-import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.guava.future
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import timber.log.Timber
 import java.io.InterruptedIOException
+import java.net.ConnectException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.coroutineContext
 
 @Singleton
 class ResolveAudioStreamUseCase
@@ -63,85 +71,279 @@ class ResolveAudioStreamUseCase
             val network: YoutubeiNetworkConfiguration,
         )
 
+        private data class InFlightKey(
+            val cacheKey: CacheKey,
+            val priority: StreamResolutionPriority,
+        )
+
+        private enum class ResolutionConsumer {
+            PLAYBACK,
+            PRELOAD,
+        }
+
+        private class InFlightResolution(
+            val deferred: Deferred<ResolvedAudioStream>,
+            var playbackOwners: Int = 0,
+            var preloadOwners: Int = 0,
+        )
+
+        private sealed interface ResolutionLease {
+            data class Cached(val stream: ResolvedAudioStream) : ResolutionLease
+
+            data class Active(
+                val key: InFlightKey,
+                val resolution: InFlightResolution,
+            ) : ResolutionLease
+        }
+
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private val cache = ConcurrentHashMap<CacheKey, ResolvedAudioStream>()
-        private val inFlight = ConcurrentHashMap<CacheKey, Deferred<ResolvedAudioStream>>()
+        private val inFlightLock = Any()
+        private val inFlight = mutableMapOf<InFlightKey, InFlightResolution>()
         private val sessionResetMutex = Mutex()
         private val sessionResetRequired = AtomicBoolean(false)
         private val loginContextMutex = Mutex()
 
-        suspend operator fun invoke(request: AudioStreamRequest): ResolvedAudioStream {
-            val key = request.cacheKey()
-            cache[key]?.let { cached ->
-                if (isFresh(cached)) return cached
-                cache.remove(key, cached)
-            }
-            val priority =
-                if (request.purpose == StreamPurpose.PLAYBACK) {
-                    StreamResolutionPriority.FOREGROUND
-                } else {
-                    StreamResolutionPriority.BACKGROUND
-                }
+        suspend operator fun invoke(request: AudioStreamRequest): ResolvedAudioStream =
+            resolve(request, ResolutionConsumer.PLAYBACK)
 
-            val deferred =
-                inFlight.computeIfAbsent(key) {
-                    scope.async {
-                        try {
-                            resolveUncached(request, priority).also { resolved ->
-                                cache[key] = resolved
-                                cache[key.copy(authFingerprint = resolved.authFingerprint)] = resolved
-                                trimCacheIfNeeded()
-                            }
-                        } finally {
-                            inFlight.remove(key)
+        suspend fun preload(request: AudioStreamRequest) {
+            resolve(request, ResolutionConsumer.PRELOAD)
+        }
+
+        private suspend fun resolve(
+            request: AudioStreamRequest,
+            consumer: ResolutionConsumer,
+        ): ResolvedAudioStream {
+            val key = request.cacheKey()
+            val priority = request.resolutionPriority(consumer)
+            val lease = acquireResolution(key, request, consumer, priority)
+            if (lease is ResolutionLease.Cached) return lease.stream
+
+            val activeLease = lease as ResolutionLease.Active
+            val resolution = activeLease.resolution
+            return try {
+                resolution.deferred.start()
+                resolution.deferred.await()
+            } finally {
+                releaseResolution(activeLease.key, resolution, consumer)
+            }
+        }
+
+        private fun acquireResolution(
+            key: CacheKey,
+            request: AudioStreamRequest,
+            consumer: ResolutionConsumer,
+            priority: StreamResolutionPriority,
+        ): ResolutionLease {
+            var preloadsToCancel: List<Deferred<ResolvedAudioStream>> = emptyList()
+            val lease =
+                synchronized(inFlightLock) {
+                    cache[key]?.let { cached ->
+                        if (isFresh(cached)) return@synchronized ResolutionLease.Cached(cached)
+                        cache.remove(key, cached)
+                    }
+
+                    val requestedInFlightKey = InFlightKey(key, priority)
+                    val alternateInFlightKey =
+                        InFlightKey(
+                            cacheKey = key,
+                            priority =
+                                when (priority) {
+                                    StreamResolutionPriority.FOREGROUND -> StreamResolutionPriority.BACKGROUND
+                                    StreamResolutionPriority.BACKGROUND -> StreamResolutionPriority.FOREGROUND
+                                },
+                        )
+                    val reusableInFlightKey =
+                        requestedInFlightKey.takeIf(inFlight::containsKey)
+                            ?: alternateInFlightKey.takeIf(inFlight::containsKey)
+                    if (reusableInFlightKey != null) {
+                        inFlight[reusableInFlightKey]?.let { resolution ->
+                            resolution.addOwner(consumer)
+                            return@synchronized ResolutionLease.Active(reusableInFlightKey, resolution)
                         }
                     }
+
+                    if (priority == StreamResolutionPriority.FOREGROUND) {
+                        val obsoletePreloads =
+                            inFlight.entries
+                                .filter { (inFlightKey, resolution) ->
+                                    inFlightKey.priority == StreamResolutionPriority.BACKGROUND &&
+                                        resolution.hasOnlyPreloadOwners() &&
+                                        !resolution.deferred.isCompleted
+                                }.map { (inFlightKey, resolution) -> inFlightKey to resolution }
+                        preloadsToCancel =
+                            obsoletePreloads.mapNotNull { (inFlightKey, resolution) ->
+                                if (inFlight.remove(inFlightKey, resolution)) {
+                                    resolution.deferred
+                                } else {
+                                    null
+                                }
+                            }
+                    }
+
+                    lateinit var resolution: InFlightResolution
+                    val deferred =
+                        scope.async(start = CoroutineStart.LAZY) {
+                            val resolved =
+                                resolveUncached(
+                                    request = request,
+                                    priority = priority,
+                                )
+                            val resolutionContext = coroutineContext
+                            resolutionContext.ensureActive()
+                            synchronized(inFlightLock) {
+                                resolutionContext.ensureActive()
+                                if (
+                                    inFlight[requestedInFlightKey] !== resolution ||
+                                    !resolution.hasOwners()
+                                ) {
+                                    throw CancellationException(
+                                        "Audio stream resolution no longer has active consumers",
+                                    )
+                                }
+                                if (key.network != playbackNetworkConfiguration(context)) {
+                                    throw ConnectException("Playback network changed during stream resolution")
+                                }
+                                storeResolvedStream(key, resolved)
+                            }
+                            resolved
+                        }
+
+                    resolution = InFlightResolution(deferred)
+                    resolution.addOwner(consumer)
+                    deferred.invokeOnCompletion {
+                        synchronized(inFlightLock) {
+                            if (inFlight[requestedInFlightKey] === resolution) {
+                                inFlight.remove(requestedInFlightKey)
+                            }
+                        }
+                    }
+                    inFlight[requestedInFlightKey] = resolution
+                    ResolutionLease.Active(requestedInFlightKey, resolution)
                 }
-            return deferred.await()
+            preloadsToCancel.forEach { deferred -> deferred.cancel() }
+            return lease
+        }
+
+        private fun releaseResolution(
+            key: InFlightKey,
+            resolution: InFlightResolution,
+            consumer: ResolutionConsumer,
+        ) {
+            val deferredToCancel =
+                synchronized(inFlightLock) {
+                    resolution.removeOwner(consumer)
+                    if (
+                        resolution.playbackOwners == 0 &&
+                        resolution.preloadOwners == 0 &&
+                        !resolution.deferred.isCompleted &&
+                        inFlight[key] === resolution
+                    ) {
+                        inFlight.remove(key)
+                        resolution.deferred
+                    } else {
+                        null
+                    }
+                }
+            deferredToCancel?.cancel()
+        }
+
+        private fun InFlightResolution.addOwner(consumer: ResolutionConsumer) {
+            when (consumer) {
+                ResolutionConsumer.PLAYBACK -> playbackOwners += 1
+                ResolutionConsumer.PRELOAD -> preloadOwners += 1
+            }
+        }
+
+        private fun InFlightResolution.hasOwners(): Boolean =
+            playbackOwners > 0 || preloadOwners > 0
+
+        private fun InFlightResolution.hasOnlyPreloadOwners(): Boolean =
+            playbackOwners == 0 && preloadOwners > 0
+
+        private fun InFlightResolution.removeOwner(consumer: ResolutionConsumer) {
+            when (consumer) {
+                ResolutionConsumer.PLAYBACK -> playbackOwners -= 1
+                ResolutionConsumer.PRELOAD -> preloadOwners -= 1
+            }
         }
 
         @WorkerThread
         fun resolveBlocking(request: AudioStreamRequest): ResolvedAudioStream {
             check(Looper.myLooper() != Looper.getMainLooper())
+            val startedAt = SystemClock.elapsedRealtime()
+            Timber.tag(TAG).d(
+                "Resolving mediaId=%s purpose=%s",
+                request.mediaId,
+                request.purpose,
+            )
             val future = scope.future { invoke(request) }
             return try {
-                future.get()
-            } catch (e: InterruptedException) {
+                future.get().also {
+                    Timber.tag(TAG).d("Resolution delivered elapsedMs=%d", SystemClock.elapsedRealtime() - startedAt)
+                }
+            } catch (throwable: InterruptedException) {
                 future.cancel(true)
                 Thread.currentThread().interrupt()
-                throw InterruptedIOException("Audio stream resolution interrupted").apply { initCause(e) }
-            } catch (e: ExecutionException) {
+                throw InterruptedIOException("Audio stream resolution interrupted").apply {
+                    initCause(throwable)
+                }
+            } catch (throwable: ExecutionException) {
                 future.cancel(true)
-                throw (e.cause ?: e)
+                val cause = throwable.cause ?: throwable
+                if (cause is CancellationException) {
+                    throw InterruptedIOException("Audio stream resolution was invalidated").apply {
+                        initCause(cause)
+                    }
+                }
+                throw cause
+            } catch (throwable: CancellationException) {
+                future.cancel(true)
+                throw InterruptedIOException("Audio stream resolution was cancelled").apply {
+                    initCause(throwable)
+                }
+            } catch (throwable: Throwable) {
+                future.cancel(true)
+                throw throwable
             }
         }
 
-        fun invalidate(
-            mediaId: String,
-            purpose: StreamPurpose? = null,
-        ) {
-            cache.keys.removeIf { it.mediaId == mediaId && (purpose == null || it.purpose == purpose) }
-            inFlight.entries.removeIf { (k, d) ->
-                val match = k.mediaId == mediaId && (purpose == null || k.purpose == purpose)
-                if (match) d.cancel()
-                match
-            }
+        fun invalidate(mediaId: String, purpose: StreamPurpose? = null) {
+            val deferredsToCancel =
+                synchronized(inFlightLock) {
+                    cache.keys.removeIf { it.mediaId == mediaId && (purpose == null || it.purpose == purpose) }
+                    inFlight.keys
+                        .filter {
+                            it.cacheKey.mediaId == mediaId &&
+                                (purpose == null || it.cacheKey.purpose == purpose)
+                        }
+                        .mapNotNull { inFlight.remove(it)?.deferred }
+                }
+            deferredsToCancel.forEach { it.cancel() }
+        }
+
+        fun invalidateUrl(url: String) {
+            cache.entries.removeIf { it.value.url == url }
         }
 
         fun reportRejectedStream(url: String) {
-            val canonical = url.toHttpUrlOrNull()?.toString() ?: url
-            val entry =
-                cache.entries.firstOrNull {
-                    (it.value.url.toHttpUrlOrNull()?.toString() ?: it.value.url) == canonical
-                } ?: return
-            cache.entries.removeIf {
-                (it.value.url.toHttpUrlOrNull()?.toString() ?: it.value.url) == canonical
+            val rejectedUrl = url.canonicalStreamUrl()
+            val rejectedEntry =
+                cache.entries.firstOrNull { it.value.url.canonicalStreamUrl() == rejectedUrl } ?: return
+            val rejected = rejectedEntry.value
+            synchronized(inFlightLock) {
+                cache.entries.removeIf { it.value.url.canonicalStreamUrl() == rejectedUrl }
             }
+            if (rejected.source != StreamSource.YOUTUBEI) return
             if (YTPlayerUtils.isExpiredOrNearExpiredStreamUrl(url)) return
-            val binding = entry.value.gvsPoTokenBinding ?: return
-            val generation = entry.value.gvsPoTokenMinterGeneration ?: return
-            youtubeiRepository.reportRejectedGvsPoToken(generation, binding)
-            cache.entries.removeIf { it.value.gvsPoTokenMinterGeneration == generation }
+            if (rejectedEntry.key.network != playbackNetworkConfiguration(context)) return
+            val rejectedBinding = rejected.gvsPoTokenBinding ?: return
+            val rejectedGeneration = rejected.gvsPoTokenMinterGeneration ?: return
+            youtubeiRepository.reportRejectedGvsPoToken(rejectedGeneration, rejectedBinding)
+            synchronized(inFlightLock) {
+                cache.entries.removeIf { it.value.gvsPoTokenMinterGeneration == rejectedGeneration }
+            }
         }
 
         fun invalidateSession() {
@@ -149,10 +351,21 @@ class ResolveAudioStreamUseCase
             clear()
         }
 
+        fun peek(request: AudioStreamRequest): ResolvedAudioStream? {
+            val key = request.cacheKey()
+            val resolved = cache[key] ?: return null
+            if (isFresh(resolved)) return resolved
+            cache.remove(key, resolved)
+            return null
+        }
+
         fun clear() {
-            cache.clear()
-            inFlight.values.forEach { it.cancel() }
-            inFlight.clear()
+            val deferredsToCancel =
+                synchronized(inFlightLock) {
+                    cache.clear()
+                    inFlight.values.map(InFlightResolution::deferred).also { inFlight.clear() }
+                }
+            deferredsToCancel.forEach { it.cancel() }
         }
 
         private suspend fun resolveUncached(
@@ -161,22 +374,38 @@ class ResolveAudioStreamUseCase
         ): ResolvedAudioStream {
             sessionResetMutex.withLock {
                 if (sessionResetRequired.getAndSet(false)) {
-                    YTPlayerUtils.resetAnonymousFallbackSession()
-                    BotGuardTokenGenerator.invalidateAll()
-                    youtubeiRepository.invalidateSessions()
+                    try {
+                        YTPlayerUtils.resetAnonymousFallbackSession()
+                        BotGuardTokenGenerator.invalidateAll()
+                        youtubeiRepository.invalidateSessions()
+                    } catch (failure: Throwable) {
+                        sessionResetRequired.set(true)
+                        throw failure
+                    }
                 }
             }
             return try {
                 resolveWithAuth(request, priority)
             } catch (failure: Exception) {
                 if (failure is CancellationException) throw failure
-                val rejectedLogin =
-                    failure is YTPlayerUtils.InvalidPlaybackLoginContextException ||
-                        (failure is YoutubeiException &&
-                            failure.kind == YoutubeiFailureKind.HTTP &&
-                            failure.httpStatus in setOf(401, 403))
+                val rejectedLogin = failure is YTPlayerUtils.InvalidPlaybackLoginContextException ||
+                    failure is YoutubeiException && failure.kind == YoutubeiFailureKind.HTTP &&
+                    failure.httpStatus in setOf(401, 403)
                 if (!request.authState.hasLoginCookie || !rejectedLogin) throw failure
-                resolveWithAuth(request.copy(authState = PlaybackAuthState.EMPTY), priority)
+                try {
+                    resolveWithAuth(request.copy(authState = PlaybackAuthState.EMPTY), priority)
+                } catch (anonymousFailure: Exception) {
+                    if (anonymousFailure is CancellationException) throw anonymousFailure
+                    YTPlayerUtils.resetAnonymousFallbackSession()
+                    if (anonymousFailure is YTPlayerUtils.LoginRequiredForPlaybackException ||
+                        anonymousFailure is YTPlayerUtils.BadStreamPlayerResponseException
+                    ) {
+                        failure.addSuppressed(anonymousFailure)
+                        throw failure
+                    }
+                    anonymousFailure.addSuppressed(failure)
+                    throw anonymousFailure
+                }
             }
         }
 
@@ -205,21 +434,52 @@ class ResolveAudioStreamUseCase
                         .toPlaybackAuthState()
                         .takeIf { it.cookie == authState.cookie }
                         ?.dataSyncId
-                        ?: YouTube
-                            .accountChannels()
-                            .getOrNull()
-                            ?.let { list -> list.firstOrNull { it.isSelected } ?: list.firstOrNull() }
-                            ?.dataSyncId
-                            ?.takeIf { it.isNotBlank() }
-                } ?: return authState
-            context.dataStore.edit { prefs ->
-                val persisted = prefs.toPlaybackAuthState()
-                if (persisted.cookie == authState.cookie && persisted.dataSyncId == null) {
-                    prefs[DataSyncIdKey] = dataSyncId
+                        ?: fetchLoginContext(request)
                 }
-            }
+            Timber.tag(TAG).i("Restored the account session for %s before stream resolution", request.mediaId)
             return authState.copy(dataSyncId = dataSyncId).normalized()
         }
+
+        private suspend fun fetchLoginContext(request: AudioStreamRequest): String {
+            val authState = request.authState
+            val targetUrl = "https://music.youtube.com/watch?v=${request.mediaId}"
+            if (YouTube.currentPlaybackAuthState().cookie != authState.cookie) {
+                throw YTPlayerUtils.InvalidPlaybackLoginContextException(
+                    videoId = request.mediaId,
+                    targetUrl = targetUrl,
+                    cause = IllegalStateException("YouTube account session is missing"),
+                )
+            }
+            val dataSyncId =
+                YouTube.accountDataSyncId().getOrElse { failure ->
+                    if (failure is CancellationException) throw failure
+                    val sessionRejected =
+                        failure is ClientRequestException ||
+                            failure is IllegalStateException && failure !is ResponseException
+                    if (!sessionRejected) throw failure
+                    throw YTPlayerUtils.InvalidPlaybackLoginContextException(
+                        videoId = request.mediaId,
+                        targetUrl = targetUrl,
+                        cause = failure,
+                    )
+                }
+            context.dataStore.edit { preferences ->
+                val persisted = preferences.toPlaybackAuthState()
+                if (persisted.cookie == authState.cookie && persisted.dataSyncId == null) {
+                    preferences[DataSyncIdKey] = dataSyncId
+                }
+            }
+            return dataSyncId
+        }
+
+        private fun AudioStreamRequest.resolutionPriority(
+            consumer: ResolutionConsumer,
+        ): StreamResolutionPriority =
+            if (consumer == ResolutionConsumer.PLAYBACK && purpose == StreamPurpose.PLAYBACK) {
+                StreamResolutionPriority.FOREGROUND
+            } else {
+                StreamResolutionPriority.BACKGROUND
+            }
 
         private fun AudioStreamRequest.cacheKey(): CacheKey =
             CacheKey(
@@ -233,11 +493,61 @@ class ResolveAudioStreamUseCase
                 network = playbackNetworkConfiguration(context),
             )
 
-        private fun isFresh(stream: ResolvedAudioStream): Boolean =
-            stream.expiresAtMs > System.currentTimeMillis() + 60_000L
-
-        private fun trimCacheIfNeeded() {
-            if (cache.size <= 256) return
+        private fun storeResolvedStream(
+            key: CacheKey,
+            resolved: ResolvedAudioStream,
+        ) {
+            putResolvedStream(key, resolved)
+            if (resolved.source == StreamSource.YOUTUBEI) {
+                val alternatePurpose =
+                    when (key.purpose) {
+                        StreamPurpose.PLAYBACK -> StreamPurpose.DOWNLOAD
+                        StreamPurpose.DOWNLOAD -> StreamPurpose.PLAYBACK
+                    }
+                putResolvedStream(
+                    key.copy(
+                        purpose = alternatePurpose,
+                        requiresSongMetadata = false,
+                    ),
+                    resolved,
+                )
+            }
+            Timber.tag(TAG).d(
+                "Resolved %s via %s (%s)",
+                key.mediaId,
+                resolved.source,
+                resolved.runtimeVersion ?: "native",
+            )
+            if (cache.size <= MAX_CACHE_ENTRIES) return
             cache.entries.removeIf { !isFresh(it.value) }
+            val excess = cache.size - MAX_CACHE_ENTRIES
+            if (excess <= 0) return
+            cache.entries
+                .sortedBy { it.value.expiresAtMs }
+                .take(excess)
+                .forEach { entry -> cache.remove(entry.key, entry.value) }
+        }
+
+        private fun putResolvedStream(
+            key: CacheKey,
+            resolved: ResolvedAudioStream,
+        ) {
+            cache[key] = resolved
+            cache[
+                key.copy(
+                    authFingerprint = resolved.authFingerprint,
+                ),
+            ] = resolved
+        }
+
+        private fun isFresh(stream: ResolvedAudioStream): Boolean =
+            stream.expiresAtMs > System.currentTimeMillis() + STREAM_EXPIRY_SAFETY_MS
+
+        private fun String.canonicalStreamUrl(): String = toHttpUrlOrNull()?.toString() ?: this
+
+        private companion object {
+            const val TAG = "AudioStreamResolver"
+            const val STREAM_EXPIRY_SAFETY_MS = 60_000L
+            const val MAX_CACHE_ENTRIES = 256
         }
     }

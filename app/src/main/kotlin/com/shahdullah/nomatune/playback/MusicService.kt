@@ -5598,80 +5598,28 @@ private fun onMediaItemTransitionInternal() {
                     ?: storedFormat?.itag?.takeIf { it > 0 }
             }
 
+        // Single-pass stream resolution, the same shape upstream uses: the youtubei
+        // resolver owns client rotation, PoToken minting and account recovery.
+        // Resolving twice (resolver first, then YTPlayerUtils) handed ExoPlayer a
+        // URL minted in a different request than the one the PoToken / cver binding
+        // was issued for - which produced HTTP 403 "No stream available" on tracks
+        // that had just resolved successfully.
         val lowDataModeActive = isLowDataModeActive()
-        val hiResLosslessSelected = preferredStreamClient == PlayerStreamClient.HI_RES_LOSSLESS
-        val requestedQuality = if (lowDataModeActive) AudioQuality.LOW else audioQuality
-
+        var resolvedRequestHeaders: Map<String, String> = emptyMap()
         val resolved =
             runCatching {
-                if (hiResLosslessSelected) {
-                    runBlocking(Dispatchers.IO) { resolveHiResLosslessPlayback(mediaId) }
-                        .map { pd -> pd.toResolvedAudioStream().copy(source = StreamSource.EXTERNAL) }
-                        .recoverCatching { externalFailure ->
-                            Timber.tag("MusicService").w(
-                                externalFailure,
-                                "Hi-Res external stream failed for %s; falling back to YouTube stream resolver",
-                                mediaId,
-                            )
-                            resolveAudioStream.resolveBlocking(
-                                AudioStreamRequest(
-                                    mediaId = mediaId,
-                                    quality = requestedQuality,
-                                    networkMetered = lowDataModeActive,
-                                    purpose = StreamPurpose.PLAYBACK,
-                                    authState = YouTube.currentPlaybackAuthState(),
-                                    pinnedFormatId = pinnedFormatId,
-                                ),
-                            )
-                        }.getOrThrow()
-                } else {
-                    try {
-                        resolveAudioStream.resolveBlocking(
-                            AudioStreamRequest(
-                                mediaId = mediaId,
-                                quality = requestedQuality,
-                                networkMetered = lowDataModeActive,
-                                purpose = StreamPurpose.PLAYBACK,
-                                authState = YouTube.currentPlaybackAuthState(),
-                                pinnedFormatId = pinnedFormatId,
-                            ),
-                        )
-                    } catch (primaryFailure: Throwable) {
-                        if (primaryFailure is CancellationException ||
-                            primaryFailure is YTPlayerUtils.InvalidPlaybackLoginContextException
-                        ) {
-                            throw primaryFailure
-                        }
-                        if (primaryFailure !is YoutubeiException &&
-                            primaryFailure !is YTPlayerUtils.BadStreamPlayerResponseException &&
-                            primaryFailure !is YTPlayerUtils.BotDetectionPlaybackException &&
-                            primaryFailure !is YTPlayerUtils.LoginRequiredForPlaybackException
-                        ) {
-                            throw primaryFailure
-                        }
-                        Timber.tag("MusicService").w(
-                            primaryFailure,
-                            "Primary youtubei stream resolution failed for %s; trying fallback stream clients",
-                            mediaId,
-                        )
-                        runBlocking(Dispatchers.IO) {
-                            retryWithoutPlaybackLoginContext {
-                                YTPlayerUtils.playerResponseForPlayback(
-                                    mediaId,
-                                    audioQuality = requestedQuality,
-                                    connectivityManager = connectivityManager,
-                                    preferredStreamClient = preferredStreamClient,
-                                    networkMetered = lowDataModeActive,
-                                )
-                            }.recoverCatching { youtubeFailure ->
-                                if (youtubeFailure !is YTPlayerUtils.BotDetectionPlaybackException) {
-                                    throw youtubeFailure
-                                }
-                                resolveHiResLosslessPlayback(mediaId).getOrElse { throw youtubeFailure }
-                            }
-                        }.getOrThrow().toResolvedAudioStream()
-                    }
-                }
+                resolveAudioStream
+                    .resolveBlocking(
+                        AudioStreamRequest(
+                            mediaId = mediaId,
+                            quality = if (lowDataModeActive) AudioQuality.LOW else audioQuality,
+                            networkMetered = lowDataModeActive,
+                            purpose = StreamPurpose.PLAYBACK,
+                            authState = YouTube.currentPlaybackAuthState(),
+                            pinnedFormatId = pinnedFormatId,
+                            allowModules = false,
+                        ),
+                    ).also { stream -> resolvedRequestHeaders = stream.requestHeaders }
             }.getOrElse { throwable ->
                 if (throwable is CancellationException) throw throwable
                 when {
