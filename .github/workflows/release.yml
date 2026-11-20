@@ -196,6 +196,44 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Build release notes
+        if: steps.tag_check.outputs.exists == 'false'
+        id: notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          VER="${{ steps.ver.outputs.version }}"
+          mkdir -p .release-notes
+          OUT=".release-notes/v${VER}.md"
+          if [ -f "release-notes/v${VER}.md" ]; then
+            # Curated notes for this release (ArchiveTune-style format).
+            cp "release-notes/v${VER}.md" "$OUT"
+          else
+            # Fallback: generate notes from commits since the previous tag so a
+            # release never goes out with an empty/stale body.
+            PREV_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+            {
+              echo "## NomaTune v${VER} 🎵"
+              echo
+              echo "### 📝 What Changed"
+              echo
+              if [ -n "${PREV_TAG}" ]; then
+                EXCLUDED='(^|[[:space:]])v?[0-9]+\.[0-9]+\.[0-9]+([[:space:]]|$)|bump (to )?v?[0-9]+\.[0-9]+\.[0-9]+|chore: release|^Merge '
+                    git log --no-merges --invert-grep -E --grep="$EXCLUDED" --pretty='- %s' "${PREV_TAG}..HEAD"
+                echo
+                echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...v${VER}"
+              else
+                git log -n 30 --no-merges --pretty='- %s'
+              fi
+              echo
+              echo "### 🔐 Signing"
+              echo "- Signed and verified with the permanent NomaTune release key — installs cleanly over your existing install."
+            } > "$OUT"
+          fi
+          echo "Writing release notes from ${OUT}:"
+          cat "$OUT"
+          echo "path=$OUT" >> "$GITHUB_OUTPUT"
+
       - name: Download all APKs
         if: steps.tag_check.outputs.exists == 'false'
         uses: actions/download-artifact@v4
@@ -212,23 +250,9 @@ jobs:
           name: NomaTune v${{ steps.ver.outputs.version }}
           draft: false
           prerelease: false
-          # Release notes are written below (no auto changelog).
-          # NOTE: update the body text on every release — keep it short, friendly and emoji-rich.
+          # Release notes come from release-notes/v<version>.md (ArchiveTune-style
+          # format: Highlights / sections / Contributors / Full Changelog), with an
+          # automatic commit-based fallback built in the previous step.
           generate_release_notes: false
-          body: |
-            ## What's New in v${{ steps.ver.outputs.version }} 🎵
-
-            **Full ArchiveTune playback parity — songs start every time and play all the way through.**
-
-            ### 🎧 Complete Playback & Stream Engine Upgrade
-            - 🌃 **"Midnight City" & major-label tracks fixed** — wired `:morideobfuscator` (`youtubei.js` QuickJS cipher + catalog replacement) into `MusicService` and `DownloadUtil`, plus upgraded `NewPipeExtractor` to `0.27.1`
-            - 🛡️ **1 MB GVS PoToken verification (`GvsPoTokenVerifier`)** — pre-verifies `pot=` tokens past YouTube's 1 MB unchecked prefix and fixes `appendGvsPoToken` `videoId` binding so tracks never hit `HTTP 403` ~1 minute in
-            - 🔥 **No more mid-song cutoffs** — added `ChunkedDataSource` below `CacheDataSource`, moved `ResolvingDataSource` inside the cache layer, exempted WebM/Opus/Ogg/FLAC open-ended reads in `StreamChunkResolver`, and pinned `itag` metadata across quality switches
-            - 🔄 **Position-preserving mid-stream recovery** — fixed `isFullyCachedMedia` check in `onPlayerError` so transient network drops or expired URLs seamlessly resume at your exact timestamp instead of stopping playback
-            - 🌐 **Dual-stack IPv4/IPv6 & header parity** — wired `PlaybackHttpClient` into `MusicService` and `DownloadUtil`, fixed `MWEB`/`WEB`/`WEB_CREATOR` `Origin`/`Referer` headers, and aligned `BotGuardTokenGenerator` pre-warming
-
-            ### 🔑 Seamless Updates Guaranteed
-            - 🔐 **Signed & verified with the permanent NomaTune release key** — installs cleanly right over your existing NomaTune app without uninstalling
-
-            Thanks for keeping the music going. 💛
+          body_path: ${{ steps.notes.outputs.path }}
           files: release-apks/*.apk
