@@ -198,10 +198,15 @@ fun UpdateScreen(
     val useInAppUpdateInstaller = BuildConfig.DISTRIBUTION == "gms"
     val snackbarHostState = remember { SnackbarHostState() }
 
+    // Only used for distribution flavours without the in-app installer (izzy/foss),
+    // where the build itself is distributed by a store.
     val openUpdateUrl: (String) -> Unit = { url ->
         try {
             uriHandler.openUri(url)
         } catch (_: Exception) {
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.error_unknown))
+            }
         }
     }
 

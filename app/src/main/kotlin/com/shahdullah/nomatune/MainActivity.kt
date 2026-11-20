@@ -455,7 +455,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (::navController.isInitialized) {
-            handleDeepLinkIntent(intent, navController)
+            handleIntent(intent, navController)
         } else {
             pendingIntent = intent
         }
@@ -2088,6 +2088,16 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent?, navController: NavHostController) {
         if (intent == null) return
+        // In-app deep routes delivered by our own notifications (e.g. the update
+        // notification sends "settings/update"). Without this the notification
+        // just reopens the app on whatever screen it was last on.
+        intent.getStringExtra(EXTRA_NAVIGATE_TO)?.takeIf { it.isNotBlank() }?.let { route ->
+            intent.removeExtra(EXTRA_NAVIGATE_TO)
+            navController.navigate(route) {
+                launchSingleTop = true
+            }
+            return
+        }
         if (intent.action == ACTION_MUSIC_RECOGNITION) {
             navController.openMusicRecognition()
             return
@@ -2325,6 +2335,12 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val ACTION_SEARCH = "com.shahdullah.nomatune.action.SEARCH"
         const val ACTION_LIBRARY = "com.shahdullah.nomatune.action.LIBRARY"
+
+        /** Intent extra carrying an in-app navigation route, e.g. "settings/update". */
+        const val EXTRA_NAVIGATE_TO = "navigate_to"
+
+        /** Route of the in-app Updates screen. */
+        const val ROUTE_UPDATE_SETTINGS = "settings/update"
     }
 }
 

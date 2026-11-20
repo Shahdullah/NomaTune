@@ -15,8 +15,10 @@ package com.shahdullah.nomatune.utils
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.app.PendingIntent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.shahdullah.nomatune.MainActivity
 import com.shahdullah.nomatune.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -67,12 +69,27 @@ class UpdateInstallReceiver : BroadcastReceiver() {
     }
 
     private fun notifyFailure(context: Context) {
+        // Tapping a failed download lands on the in-app Updates screen so the user
+        // can retry there - never on github.com.
+        val retryIntent =
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                putExtra(MainActivity.EXTRA_NAVIGATE_TO, MainActivity.ROUTE_UPDATE_SETTINGS)
+            }
+        val retryPendingIntent =
+            PendingIntent.getActivity(
+                context,
+                2,
+                retryIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
         val notification =
             NotificationCompat.Builder(context, UpdateNotificationManager.CHANNEL_ID)
                 .setSmallIcon(R.drawable.small_icon)
                 .setContentTitle(context.getString(R.string.update_notification_title))
                 .setContentText(context.getString(R.string.update_download_failed))
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setContentIntent(retryPendingIntent)
                 .setAutoCancel(true)
                 .build()
         runCatching { NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification) }

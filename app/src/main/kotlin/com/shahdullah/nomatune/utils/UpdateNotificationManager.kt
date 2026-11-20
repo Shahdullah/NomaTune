@@ -171,9 +171,11 @@ object UpdateNotificationManager {
     ) {
         createNotificationChannel(context)
 
+        // Tapping the notification lands on Settings -> Updates, in-app, with the
+        // update sheet already showing the new changelog.
         val openAppIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra("navigate_to", "settings/update")
+            putExtra(MainActivity.EXTRA_NAVIGATE_TO, MainActivity.ROUTE_UPDATE_SETTINGS)
         }
         val openAppPendingIntent = PendingIntent.getActivity(
             context,
@@ -199,6 +201,10 @@ object UpdateNotificationManager {
             downloadIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+
+        // Opening the notification body always goes to the in-app Updates screen;
+        // it is also the fallback the download receiver uses when a download fails
+        // (that path only ever opens MainActivity, never a browser).
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.small_icon)
