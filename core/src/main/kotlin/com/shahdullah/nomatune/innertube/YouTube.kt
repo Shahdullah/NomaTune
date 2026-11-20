@@ -257,11 +257,13 @@ object YouTube {
     private fun resolvePlayerPoToken(
         client: YouTubeClient,
         explicitPoToken: String?,
+        videoId: String? = null,
         authState: PlaybackAuthState,
     ): String? {
         return authState.resolvePlayerPoToken(
             client = client,
             explicitPoToken = explicitPoToken,
+            videoId = videoId,
         )
     }
 
@@ -1404,7 +1406,7 @@ object YouTube {
         setLogin: Boolean = true,
         authState: PlaybackAuthState = currentPlaybackAuthState(),
     ): Result<PlayerResponse> = runCatching {
-        val resolvedPoToken = resolvePlayerPoToken(client, poToken, authState)
+        val resolvedPoToken = resolvePlayerPoToken(client, poToken, videoId, authState)
         innerTube.player(
             client = client,
             videoId = videoId,

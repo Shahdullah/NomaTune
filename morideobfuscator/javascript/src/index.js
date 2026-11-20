@@ -32,7 +32,9 @@ const SUPPORTED_AUDIO_MIME_TYPES = new Set([
   "audio/3gpp",
 ]);
 const ANONYMOUS_CLIENT = "MWEB";
+const ANONYMOUS_DIRECT_CLIENT = "VISIONOS";
 const AUTHENTICATED_CLIENT = "WEB_CREATOR";
+const TRANSIENT_FAILURE_KINDS = new Set(["NETWORK", "TIMEOUT"]);
 const AUTHENTICATED_CLIENT_VERSION = "1.20260708.06.00";
 const CATALOG_DURATION_TOLERANCE_SECONDS = 2;
 const MAX_CATALOG_REPLACEMENT_CANDIDATES = 5;
@@ -635,7 +637,10 @@ async function resolveWithClient(youtube, request, client, preparedInfo) {
     ...(info.streaming_data?.formats || []),
   ].filter(isEligibleAudioFormat);
   if (formats.length === 0) {
-    const error = new Error(reason || "No direct audio format");
+    const sabrOnly = Boolean(info.streaming_data?.server_abr_streaming_url);
+    const error = new Error(
+      reason || (sabrOnly ? `YouTube offered only SABR streams to ${client}` : "No direct audio format"),
+    );
     error.kind = "NO_FORMAT";
     throw error;
   }
@@ -704,6 +709,25 @@ async function resolveWithClient(youtube, request, client, preparedInfo) {
   };
 }
 
+async function resolveWithClients(youtube, request, clients) {
+  let primaryFailure;
+  for (const client of clients) {
+    try {
+      return await resolveWithClient(youtube, request, client);
+    } catch (error) {
+      if (!primaryFailure) {
+        if (failureKind(error) !== "NO_FORMAT") throw error;
+        primaryFailure = error;
+        continue;
+      }
+      if (TRANSIENT_FAILURE_KINDS.has(failureKind(error))) throw error;
+      primaryFailure.message = `${primaryFailure.message}; ${client}: ${failureMessage(error)}`;
+      if (failureKind(error) !== "NO_FORMAT") break;
+    }
+  }
+  throw primaryFailure;
+}
+
 function parseRequest(requestJson) {
   const request = JSON.parse(requestJson);
   if (!/^[A-Za-z0-9_-]{6,32}$/.test(String(request.mediaId || ""))) {
@@ -733,10 +757,12 @@ async function resolvePrepared(requestJson) {
       throw error;
     }
     const authenticated = Boolean(normalizedString(request.cookie));
-    const client = authenticated ? AUTHENTICATED_CLIENT : ANONYMOUS_CLIENT;
+    const clients = authenticated
+      ? [AUTHENTICATED_CLIENT]
+      : [ANONYMOUS_CLIENT, ANONYMOUS_DIRECT_CLIENT];
     let value;
     try {
-      value = await resolveWithClient(session, request, client);
+      value = await resolveWithClients(session, request, clients);
     } catch (error) {
       if (failureKind(error) !== "UNAVAILABLE" || !error.videoInfo) throw error;
       value = await resolveCatalogReplacement(session, request, error.videoInfo);
