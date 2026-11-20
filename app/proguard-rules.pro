@@ -63,9 +63,19 @@
 -dontwarn org.openjsse.net.ssl.OpenJSSE
 -dontwarn org.slf4j.impl.StaticLoggerBinder
 
-## Rules for NewPipeExtractor
+## Rules for NewPipeExtractor & QuickJS runtime
 -keep class org.schabi.newpipe.extractor.services.youtube.protos.** { *; }
 -keep class org.schabi.newpipe.extractor.timeago.patterns.** { *; }
+-keep class org.schabi.newpipe.extractor.** { *; }
+-keepclassmembers class org.schabi.newpipe.extractor.** { *; }
+-keep class com.dokar.quickjs.** { *; }
+-keepclassmembers class com.dokar.quickjs.** { *; }
+-keep class io.ktor.** { *; }
+-dontwarn io.ktor.**
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepattributes EnclosingMethod
+-keepattributes InnerClasses
 -keep class org.mozilla.javascript.** { *; }
 -keep class org.mozilla.javascript.engine.** { *; }
 -keep class org.mozilla.classfile.ClassFileWriter

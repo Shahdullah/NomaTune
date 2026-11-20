@@ -164,7 +164,9 @@ object NewPipeUtils {
         }
 
     fun getSignatureTimestamp(videoId: String): Result<Int> = runCatching {
-        YoutubeJavaScriptPlayerManager.getSignatureTimestamp(videoId)
+        withJavaScriptPlayerCacheRecovery {
+            YoutubeJavaScriptPlayerManager.getSignatureTimestamp(videoId)
+        }
     }
 
     fun getStreamUrl(
@@ -178,15 +180,18 @@ object NewPipeUtils {
             if (directUrl != null) {
                 val resolvedDirectUrl =
                     if (directUrl.toHttpUrlOrNull()?.queryParameter("n")?.isNotBlank() == true) {
-                        runCatching {
-                            retryWithBackoff(
-                                maxAttempts = 3,
-                                initialDelayMs = 250L,
-                                maxDelayMs = 2_000L
-                            ) {
-                                YoutubeJavaScriptPlayerManager.getUrlWithThrottlingParameterDeobfuscated(videoId, directUrl)
+                        retryWithBackoff(
+                            maxAttempts = 3,
+                            initialDelayMs = 250L,
+                            maxDelayMs = 2_000L,
+                        ) {
+                            withJavaScriptPlayerCacheRecovery {
+                                YoutubeJavaScriptPlayerManager.getUrlWithThrottlingParameterDeobfuscated(
+                                    videoId,
+                                    directUrl,
+                                )
                             }
-                        }.getOrElse { directUrl }
+                        }
                     } else {
                         directUrl
                     }
@@ -194,45 +199,66 @@ object NewPipeUtils {
                 return@runCatching YouTube.appendGvsPoToken(
                     url = resolvedDirectUrl,
                     client = client,
+                    videoId = videoId,
                     authState = authState,
                 )
             }
 
             val url = run {
                 val cipherString = format.signatureCipher ?: format.cipher
-                if (cipherString == null) throw ParsingException("Could not find format url")
+                    ?: throw ParsingException("Could not find format url")
 
                 val params = parseQueryString(cipherString)
                 val obfuscatedSignature = params["s"]
                     ?: throw ParsingException("Could not parse cipher signature")
-                val signatureParam = params["sp"]
-                    ?: throw ParsingException("Could not parse cipher signature parameter")
-                val url = params["url"]?.let { URLBuilder(it) }
+                val signatureParam = params["sp"]?.takeIf { it.isNotBlank() } ?: "signature"
+                val urlBuilder = params["url"]?.let { URLBuilder(it) }
                     ?: throw ParsingException("Could not parse cipher url")
-                url.parameters[signatureParam] =
-                    YoutubeJavaScriptPlayerManager.deobfuscateSignature(
-                        videoId,
-                        obfuscatedSignature
-                    )
-                url.toString()
+                urlBuilder.parameters[signatureParam] =
+                    withJavaScriptPlayerCacheRecovery {
+                        YoutubeJavaScriptPlayerManager.deobfuscateSignature(
+                            videoId,
+                            obfuscatedSignature,
+                        )
+                    }
+                urlBuilder.buildString()
             }
 
-            val resolvedUrl = runCatching {
+            val resolvedUrl =
                 retryWithBackoff(
                     maxAttempts = 3,
                     initialDelayMs = 250L,
-                    maxDelayMs = 2_000L
+                    maxDelayMs = 2_000L,
                 ) {
-                    YoutubeJavaScriptPlayerManager.getUrlWithThrottlingParameterDeobfuscated(videoId, url)
+                    withJavaScriptPlayerCacheRecovery {
+                        YoutubeJavaScriptPlayerManager.getUrlWithThrottlingParameterDeobfuscated(
+                            videoId,
+                            url,
+                        )
+                    }
                 }
-            }.getOrElse { url }
 
             YouTube.appendGvsPoToken(
                 url = resolvedUrl,
                 client = client,
+                videoId = videoId,
                 authState = authState,
             )
         }
+
+    private inline fun <T> withJavaScriptPlayerCacheRecovery(block: () -> T): T {
+        return try {
+            block()
+        } catch (error: Exception) {
+            val isStaleJs = generateSequence<Throwable>(error) { it.cause }.any {
+                it is ParsingException &&
+                    it.message?.contains("deobfuscation function", ignoreCase = true) == true
+            }
+            if (!isStaleJs) throw error
+            runCatching { YoutubeJavaScriptPlayerManager.clearAllCaches() }
+            block()
+        }
+    }
 
     private fun resolveExternalAudioStream(
         service: StreamingService,

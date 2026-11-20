@@ -273,16 +273,20 @@ object YouTube {
         return authState.hasPlaybackLoginContext
     }
 
-    internal fun resolveGvsPoToken(authState: PlaybackAuthState = currentPlaybackAuthState()): String? {
-        return authState.resolveGvsPoToken()
+    internal fun resolveGvsPoToken(
+        videoId: String? = null,
+        authState: PlaybackAuthState = currentPlaybackAuthState(),
+    ): String? {
+        return authState.resolveGvsPoToken(videoId = videoId)
     }
 
     internal fun appendGvsPoToken(
         url: String,
         client: YouTubeClient? = null,
+        videoId: String? = null,
         authState: PlaybackAuthState = currentPlaybackAuthState(),
     ): String {
-        val token = authState.resolveGvsPoToken(client) ?: return url
+        val token = authState.resolveGvsPoToken(client = client, videoId = videoId) ?: return url
         if (url.contains("pot=")) return url
 
         val separator = if (url.contains("?")) "&" else "?"

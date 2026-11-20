@@ -75,16 +75,18 @@ jobs:
               exit 1
             fi
           done
-          echo "$KEYSTORE_B64" | base64 -d > /tmp/release.jks
-          if ! keytool -list -keystore /tmp/release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null 2>&1; then
-            echo "::error::Decoded keystore is invalid or alias/password mismatch. Refusing to sign with anything but the permanent key."
+          echo "$KEYSTORE_B64" | tr -d ' \n\r\t' | base64 -d > /tmp/release.jks
+          EXPECTED_SHA256="17:C1:E0:EB:F2:1F:D9:2F:99:F5:32:D6:37:E9:DD:0A:85:D3:C7:BC:EC:56:FB:FF:D6:60:81:C4:BB:FF:84:41"
+          KEY_INFO="$(keytool -list -v -keystore /tmp/release.jks -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" 2>&1 || true)"
+          if ! grep -qi "$EXPECTED_SHA256" <<< "$KEY_INFO"; then
+            echo "::error::Decoded keystore SHA-256 does not match permanent NomaTune key ($EXPECTED_SHA256). Refusing to sign."
             exit 1
           fi
           echo "KEYSTORE_PATH=/tmp/release.jks"        >> "$GITHUB_ENV"
           echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"  >> "$GITHUB_ENV"
           echo "KEY_ALIAS=$KEY_ALIAS"                  >> "$GITHUB_ENV"
           echo "KEY_PASSWORD=$KEY_PASSWORD"            >> "$GITHUB_ENV"
-          echo "Permanent NomaTune signing key verified." 
+          echo "Permanent NomaTune signing key verified ($EXPECTED_SHA256)." 
 
       - name: Build APK
         shell: bash
@@ -154,6 +156,12 @@ jobs:
             --ks-key-alias "$KEY_ALIAS" \
             --out "release-apks/$APK_NAME" \
             "$RAW"
+          CERT_OUT="$("$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner" verify --print-certs "release-apks/$APK_NAME")"
+          echo "$CERT_OUT"
+          if ! grep -qi "17c1e0ebf21fd92f99f532d637e9dd0a85d3c7bcec56fbffd66081c4bbff8441" <<< "$CERT_OUT"; then
+            echo "::error::Signed APK certificate mismatch!"
+            exit 1
+          fi
           echo "Signed APK:"
           ls -lh "release-apks/$APK_NAME"
 
@@ -210,25 +218,17 @@ jobs:
           body: |
             ## What's New in v${{ steps.ver.outputs.version }} 🎵
 
-            **Press play — the music just plays.** This update is all about one promise: no more songs dying mid-track, no more "Unknown error / discontinued" screens, no more "Midnight City" refusing to load.
+            **Full ArchiveTune playback parity — songs start every time and play all the way through.**
 
-            ### 🎧 Streaming that actually works
-            - 🔥 **Mid-song cut-offs fixed** — tracks no longer stop at random timestamps
-            - 🌃 **"Midnight City" & co. load reliably now** — new multi-client stream fallback (visionOS · Android VR · Web · MWEB) — if one client gets refused, another takes over seamlessly
-            - ⚡ **Buffer-free streaming** — stream URLs are cached and refreshed *before* they expire
-            - 🛡️ **PoToken session recovery** — when YouTube's bot check fails, NomaTune quietly repairs the session and retries instead of giving up
-            - 🧹 Expired / stale stream detection rebuilt from the ground up
+            ### 🎧 Complete Playback & Stream Engine Upgrade
+            - 🌃 **"Midnight City" & major-label tracks fixed** — wired `:morideobfuscator` (`youtubei.js` QuickJS cipher + catalog replacement) into `MusicService` and `DownloadUtil`, plus upgraded `NewPipeExtractor` to `0.27.1`
+            - 🛡️ **1 MB GVS PoToken verification (`GvsPoTokenVerifier`)** — pre-verifies `pot=` tokens past YouTube's 1 MB unchecked prefix and fixes `appendGvsPoToken` `videoId` binding so tracks never hit `HTTP 403` ~1 minute in
+            - 🔥 **No more mid-song cutoffs** — added `ChunkedDataSource` below `CacheDataSource`, moved `ResolvingDataSource` inside the cache layer, exempted WebM/Opus/Ogg/FLAC open-ended reads in `StreamChunkResolver`, and pinned `itag` metadata across quality switches
+            - 🔄 **Position-preserving mid-stream recovery** — fixed `isFullyCachedMedia` check in `onPlayerError` so transient network drops or expired URLs seamlessly resume at your exact timestamp instead of stopping playback
+            - 🌐 **Dual-stack IPv4/IPv6 & header parity** — wired `PlaybackHttpClient` into `MusicService` and `DownloadUtil`, fixed `MWEB`/`WEB`/`WEB_CREATOR` `Origin`/`Referer` headers, and aligned `BotGuardTokenGenerator` pre-warming
 
-            ### 🔑 Sign-in made simple
-            - 🎵 **Code 2000 / "Playback confirmation required" fixed** — when a song can't stream, NomaTune now tells you why and takes you straight to the in-app YouTube Music sign-in (no more dead-end dialogs)
-            - 🔐 YouTube blocks anonymous streaming now — signing in inside the app once fixes playback for good
-
-            ### 🔔 Easier to keep updated
-            - 🔔 **Update notifications are now ON by default** — NomaTune will ping you when a new release drops (requires notification permission)
-            - 🔑 **Every release is signed with the same signing key** — updates install cleanly over your current version, no reinstall needed
-
-            ### 🎶 And the cherry on top
-            - 📦 Same app, same package, same vibes — just way more reliable
+            ### 🔑 Seamless Updates Guaranteed
+            - 🔐 **Signed & verified with the permanent NomaTune release key** — installs cleanly right over your existing NomaTune app without uninstalling
 
             Thanks for keeping the music going. 💛
           files: release-apks/*.apk

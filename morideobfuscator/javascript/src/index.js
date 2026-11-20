@@ -754,7 +754,7 @@ async function resolvePrepared(requestJson) {
   }
 }
 
-globalThis.ArchiveTuneYoutubei = Object.freeze({
+globalThis.NomaTuneYoutubei = Object.freeze({
   version: RUNTIME_VERSION,
   prepare,
   resolvePrepared,

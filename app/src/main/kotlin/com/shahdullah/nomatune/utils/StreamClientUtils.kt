@@ -184,39 +184,52 @@ object StreamClientUtils {
             clientName.startsWith("ANDROID_CREATOR") -> YouTubeClient.ANDROID_CREATOR
             clientName.startsWith("ANDROID_VR") ->
                 when (requestedClientVersion) {
+                    YouTubeClient.ANDROID_VR_NO_AUTH.clientVersion -> YouTubeClient.ANDROID_VR_NO_AUTH
+                    YouTubeClient.ANDROID_VR_1_65_10.clientVersion -> YouTubeClient.ANDROID_VR_1_65_10
                     YouTubeClient.ANDROID_VR_1_61_48.clientVersion -> YouTubeClient.ANDROID_VR_1_61_48
                     YouTubeClient.ANDROID_VR_1_43_32.clientVersion -> YouTubeClient.ANDROID_VR_1_43_32
-                    else -> YouTubeClient.ANDROID_VR_NO_AUTH
+                    else -> YouTubeClient.ANDROID_VR_1_65_10
                 }
             clientName.startsWith("ANDROID") -> YouTubeClient.MOBILE
             clientName.startsWith("VISIONOS") -> YouTubeClient.VISIONOS
-            else -> YouTubeClient.ANDROID_VR_NO_AUTH
+            else -> YouTubeClient.ANDROID_VR_1_65_10
         }
     }
 
-    private fun resolveOriginReferer(client: YouTubeClient): OriginReferer {
-        return when {
+    private fun resolveOriginReferer(client: YouTubeClient): OriginReferer =
+        when {
             isTvClient(client) ->
                 OriginReferer(YouTubeClient.ORIGIN_YOUTUBE, YouTubeClient.REFERER_YOUTUBE_TV)
-            isWebMusicClient(client) ->
+            isMobileWebClient(client) ->
+                OriginReferer("https://m.youtube.com", "https://m.youtube.com/")
+            isMusicWebClient(client) ->
                 OriginReferer(YouTubeClient.ORIGIN_YOUTUBE_MUSIC, YouTubeClient.REFERER_YOUTUBE_MUSIC)
+            isYouTubeWebClient(client) ->
+                OriginReferer(YouTubeClient.ORIGIN_YOUTUBE, "https://www.youtube.com/")
             else -> OriginReferer(null, null)
         }
-    }
 
-    private fun isWebLikeClient(client: YouTubeClient): Boolean = isTvClient(client) || isWebMusicClient(client)
+    private fun isWebLikeClient(client: YouTubeClient): Boolean =
+        isTvClient(client) ||
+            isMobileWebClient(client) ||
+            isMusicWebClient(client) ||
+            isYouTubeWebClient(client)
 
     private fun isTvClient(client: YouTubeClient): Boolean {
         val clientName = client.clientName.uppercase(Locale.US)
         return clientName == "TVHTML5" || clientName == "TVHTML5_SIMPLY_EMBEDDED_PLAYER" || clientName == "TVHTML5_SIMPLY"
     }
 
-    private fun isWebMusicClient(client: YouTubeClient): Boolean {
+    private fun isMusicWebClient(client: YouTubeClient): Boolean =
+        client.clientName.equals("WEB_REMIX", ignoreCase = true)
+
+    private fun isMobileWebClient(client: YouTubeClient): Boolean =
+        client.clientName.equals("MWEB", ignoreCase = true)
+
+    private fun isYouTubeWebClient(client: YouTubeClient): Boolean {
         val clientName = client.clientName.uppercase(Locale.US)
         return clientName == "WEB" ||
-            clientName == "WEB_REMIX" ||
             clientName == "WEB_CREATOR" ||
-            clientName == "MWEB" ||
             clientName == "WEB_EMBEDDED_PLAYER"
     }
 

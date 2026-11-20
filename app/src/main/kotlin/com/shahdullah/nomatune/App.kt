@@ -67,11 +67,21 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import java.net.Proxy
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
+import com.shahdullah.nomatune.playback.stream.ResolveAudioStreamUseCase
+import com.shahdullah.nomatune.playback.stream.YoutubeiStreamRepository
 import com.shahdullah.nomatune.utils.toPlaybackAuthState
 import com.shahdullah.nomatune.utils.potoken.BotGuardTokenGenerator
+import kotlinx.coroutines.CancellationException
+import javax.inject.Inject
 
 @HiltAndroidApp
 class App : Application(), SingletonImageLoader.Factory {
+    @Inject
+    lateinit var youtubeiStreamRepository: YoutubeiStreamRepository
+
+    @Inject
+    lateinit var resolveAudioStream: ResolveAudioStreamUseCase
+
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     @Volatile private var isInitialized = false
     private val didRunImageCacheTrim = AtomicBoolean(false)
@@ -109,7 +119,9 @@ class App : Application(), SingletonImageLoader.Factory {
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        // WebView cleanup happens automatically on process death
+        if (::youtubeiStreamRepository.isInitialized) {
+            youtubeiStreamRepository.trimMemory(level)
+        }
     }
 
     private fun initializeCriticalSync() {
@@ -135,6 +147,16 @@ class App : Application(), SingletonImageLoader.Factory {
     }
 
     private fun initializeDeferredAsync() {
+        applicationScope.launch(Dispatchers.IO) {
+            try {
+                youtubeiStreamRepository.preWarm()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (throwable: Throwable) {
+                Timber.tag("YoutubeiResolver").w(throwable, "youtubei.js runtime prewarm failed")
+            }
+        }
+
         applicationScope.launch(Dispatchers.IO) {
             try {
                 val prefs = dataStore.data.first()
@@ -168,14 +190,6 @@ class App : Application(), SingletonImageLoader.Factory {
 
                 if (prefs[UseLoginForBrowse] != false) {
                     YouTube.useLoginForBrowse = true
-                }
-                
-                // Pre-warm BotGuard token generator
-                val initialVisitor = prefs[VisitorDataKey] ?: YouTube.visitorData
-                if (!initialVisitor.isNullOrBlank()) {
-                    applicationScope.launch(Dispatchers.IO) {
-                        BotGuardTokenGenerator.preWarm(initialVisitor)
-                    }
                 }
                 
                 // Apply random theme on startup if enabled
@@ -237,15 +251,12 @@ class App : Application(), SingletonImageLoader.Factory {
                 .map { it.toPlaybackAuthState() }
                 .distinctUntilChanged()
                 .collect { authState ->
-                    val previousFingerprint = YouTube.currentPlaybackAuthState().fingerprint
                     YouTube.authState = authState
-                    if (previousFingerprint != authState.fingerprint) {
-                        YTPlayerUtils.clearPlaybackAuthCaches()
-                        val newSessionId = authState.sessionId
-                        if (!newSessionId.isNullOrBlank()) {
-                            BotGuardTokenGenerator.preWarm(newSessionId)
-                        }
-                    }
+                    resolveAudioStream.clear()
+                    YTPlayerUtils.clearPlaybackAuthCaches()
+                    BotGuardTokenGenerator.invalidateAll()
+                    youtubeiStreamRepository.invalidateSessions()
+                    YTPlayerUtils.preWarmYoutubeiPoTokens(authState)
                 }
         }
 
