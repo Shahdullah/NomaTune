@@ -1579,6 +1579,47 @@ object YouTube {
             .toList()
     }
 
+    /**
+     * Resolve the active account's DataSyncId, used to restore a playback session
+     * before stream resolution. Preferred source is responseContext, falling back
+     * to the selected accountItemRenderer.
+     */
+    suspend fun accountDataSyncId(): Result<String> =
+        runCatching {
+            val response =
+                Json.parseToJsonElement(
+                    innerTube.accountChannels(accountSwitcherClient).bodyAsText(),
+                )
+            response.findMainAppWebDataSyncId()
+                ?: response
+                    .objectsNamed("accountItemRenderer")
+                    .mapNotNull { renderer ->
+                        val isDisabled = renderer.booleanValue("isDisabled") ?: false
+                        val hasChannel = renderer.booleanValue("hasChannel") ?: true
+                        if (isDisabled || !hasChannel) return@mapNotNull null
+                        renderer["serviceEndpoint"]
+                            ?.findStringValue(setOf("datasyncId", "dataSyncId"))
+                            ?.normalizeAccountChannelDataSyncId()
+                            ?.let { dataSyncId ->
+                                dataSyncId to (renderer.booleanValue("isSelected") ?: false)
+                            }
+                    }.sortedByDescending { (_, isSelected) -> isSelected }
+                    .firstOrNull()
+                    ?.first
+                ?: throw IllegalStateException("Failed to get YouTube DataSyncId")
+        }
+
+    private fun JsonElement.findMainAppWebDataSyncId(): String? =
+        (this as? JsonObject)
+            ?.get("responseContext")
+            ?.jsonObjectOrNull()
+            ?.get("mainAppWebResponseContext")
+            ?.jsonObjectOrNull()
+            ?.get("dataSyncId")
+            ?.let { it as? kotlinx.serialization.json.JsonPrimitive }
+            ?.contentOrNull
+            ?.normalizeAccountChannelDataSyncId()
+
     private fun parseAccountChannel(renderer: JsonObject): AccountChannel? {
         val isDisabled = renderer.booleanValue("isDisabled") ?: false
         val hasChannel = renderer.booleanValue("hasChannel") ?: true
