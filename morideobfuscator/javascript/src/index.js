@@ -35,6 +35,22 @@ const ANONYMOUS_CLIENT = "MWEB";
 const ANONYMOUS_DIRECT_CLIENT = "VISIONOS";
 const AUTHENTICATED_CLIENT = "WEB_CREATOR";
 const TRANSIENT_FAILURE_KINDS = new Set(["NETWORK", "TIMEOUT"]);
+const ROTATABLE_FAILURE_KINDS = new Set([
+  "NO_FORMAT",
+  "LOGIN_REQUIRED",
+  "UNAVAILABLE",
+  "DECIPHER",
+  "HTTP",
+  "PO_TOKEN",
+]);
+const TOKEN_RETRY_FAILURE_KINDS = new Set([
+  "LOGIN_REQUIRED",
+  "NO_FORMAT",
+  "UNAVAILABLE",
+  "DECIPHER",
+  "HTTP",
+  "PO_TOKEN",
+]);
 const AUTHENTICATED_CLIENT_VERSION = "1.20260708.06.00";
 const CATALOG_DURATION_TOLERANCE_SECONDS = 2;
 const MAX_CATALOG_REPLACEMENT_CANDIDATES = 5;
@@ -104,6 +120,7 @@ let catalogSession;
 let catalogSessionIdentity;
 let stagedPlayerId;
 let stagedPlayerSource;
+const suppressedPoTokenIdentities = new Set();
 
 function normalizedString(value) {
   const normalized = typeof value === "string" ? value.trim() : "";
@@ -710,22 +727,33 @@ async function resolveWithClient(youtube, request, client, preparedInfo) {
 }
 
 async function resolveWithClients(youtube, request, clients) {
+  const attempts = [];
   let primaryFailure;
   for (const client of clients) {
     try {
       return await resolveWithClient(youtube, request, client);
     } catch (error) {
+      const kind = failureKind(error);
+      // A dead network is worth reporting as-is; everything else is client-specific
+      // and the next client may well succeed (SABR-only, "Please sign in", 403, ...).
+      if (TRANSIENT_FAILURE_KINDS.has(kind)) throw error;
+      attempts.push(`${client}: ${failureMessage(error)}`);
       if (!primaryFailure) {
-        if (failureKind(error) !== "NO_FORMAT") throw error;
+        if (!ROTATABLE_FAILURE_KINDS.has(kind)) throw error;
         primaryFailure = error;
-        continue;
       }
-      if (TRANSIENT_FAILURE_KINDS.has(failureKind(error))) throw error;
-      primaryFailure.message = `${primaryFailure.message}; ${client}: ${failureMessage(error)}`;
-      if (failureKind(error) !== "NO_FORMAT") break;
     }
   }
+  if (primaryFailure) primaryFailure.message = attempts.join("; ");
   throw primaryFailure;
+}
+
+function hasPoTokens(request) {
+  return Boolean(normalizedString(request.videoPoToken) || normalizedString(request.sessionPoToken));
+}
+
+function stripPoTokens(request) {
+  return { ...request, videoPoToken: undefined, sessionPoToken: undefined };
 }
 
 function parseRequest(requestJson) {
@@ -747,28 +775,64 @@ async function prepare(requestJson) {
   }
 }
 
+async function resolveForRequest(youtube, request, authenticated) {
+  const clients = authenticated
+    ? [AUTHENTICATED_CLIENT]
+    : [ANONYMOUS_CLIENT, ANONYMOUS_DIRECT_CLIENT];
+  try {
+    return await resolveWithClients(youtube, request, clients);
+  } catch (error) {
+    if (failureKind(error) !== "UNAVAILABLE" || !error.videoInfo) throw error;
+    const value = await resolveCatalogReplacement(youtube, request, error.videoInfo);
+    if (!value) throw error;
+    return value;
+  }
+}
+
 async function resolvePrepared(requestJson) {
   try {
     const request = parseRequest(requestJson);
     const identity = createSessionIdentity(request);
-    if (!session || identity !== sessionIdentity) {
-      const error = new Error("youtubei.js session was not prepared");
-      error.kind = "INTERNAL";
-      throw error;
-    }
     const authenticated = Boolean(normalizedString(request.cookie));
-    const clients = authenticated
-      ? [AUTHENTICATED_CLIENT]
-      : [ANONYMOUS_CLIENT, ANONYMOUS_DIRECT_CLIENT];
-    let value;
-    try {
-      value = await resolveWithClients(session, request, clients);
-    } catch (error) {
-      if (failureKind(error) !== "UNAVAILABLE" || !error.videoInfo) throw error;
-      value = await resolveCatalogReplacement(session, request, error.videoInfo);
-      if (!value) throw error;
+    // Once an anonymous PoToken has been rejected, keep resolving anonymously
+    // without tokens instead of replaying the rejected token on every attempt.
+    const poTokensSuppressed = !authenticated && suppressedPoTokenIdentities.has(identity);
+    const effectiveRequest = poTokensSuppressed ? stripPoTokens(request) : request;
+    const effectiveIdentity = createSessionIdentity(effectiveRequest);
+    if (!session || effectiveIdentity !== sessionIdentity) {
+      await getSession(effectiveRequest);
     }
-    return JSON.stringify({ ok: true, value });
+    try {
+      return JSON.stringify({
+        ok: true,
+        value: await resolveForRequest(session, effectiveRequest, authenticated),
+      });
+    } catch (error) {
+      if (
+        authenticated ||
+        poTokensSuppressed ||
+        !hasPoTokens(request) ||
+        !TOKEN_RETRY_FAILURE_KINDS.has(failureKind(error))
+      ) {
+        throw error;
+      }
+      // A visitor-bound PoToken that YouTube rejects turns *every* anonymous client
+      // into "Please sign in"/403. Rebuild the session without tokens and retry once.
+      session = undefined;
+      sessionIdentity = undefined;
+      const tokenlessRequest = stripPoTokens(request);
+      const tokenlessSession = await getSession(tokenlessRequest);
+      try {
+        const value = await resolveForRequest(tokenlessSession, tokenlessRequest, false);
+        suppressedPoTokenIdentities.add(identity);
+        return JSON.stringify({ ok: true, value });
+      } catch (tokenlessFailure) {
+        suppressedPoTokenIdentities.add(identity);
+        tokenlessFailure.message =
+          `${failureMessage(error)}; without PoToken: ${failureMessage(tokenlessFailure)}`;
+        throw tokenlessFailure;
+      }
+    }
   } catch (error) {
     return JSON.stringify({
       ok: false,
@@ -791,5 +855,6 @@ globalThis.NomaTuneYoutubei = Object.freeze({
     catalogSessionIdentity = undefined;
     stagedPlayerId = undefined;
     stagedPlayerSource = undefined;
+    suppressedPoTokenIdentities.clear();
   },
 });
