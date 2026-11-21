@@ -89,8 +89,41 @@ class YoutubeiStreamRepository
         internal suspend fun resolve(
             request: AudioStreamRequest,
             priority: StreamResolutionPriority,
+        ): ResolvedAudioStream =
+            try {
+                resolveOnce(request, priority, request.authState)
+            } catch (failure: YoutubeiException) {
+                // A signed-out device can still be carrying playback state from an earlier
+                // session (a stale visitor identity, a PoToken minted for a previous login).
+                // YouTube answers "Please sign in" for every such request even though the
+                // user is not signed in. Retry exactly once with a pristine anonymous state
+                // instead of sending the user a dead end.
+                if (request.authState.hasLoginCookie || !failure.isAnonymousRefusal()) throw failure
+                val cleanAuthState =
+                    YouTube.updateAuthState { current ->
+                        if (!current.hasLoginCookie) current.withoutResidualPlaybackState() else current
+                    }
+                if (cleanAuthState.hasLoginCookie || cleanAuthState == request.authState) throw failure
+                resolver.invalidateSessions()
+                YTPlayerUtils.clearPlaybackAuthCaches()
+                Timber.tag(LOG_TAG).i(
+                    "Anonymous resolve refused (%s); retrying without residual playback state",
+                    failure.kind,
+                )
+                try {
+                    resolveOnce(request, priority, cleanAuthState)
+                } catch (retryFailure: YoutubeiException) {
+                    retryFailure.addSuppressed(failure)
+                    throw retryFailure
+                }
+            }
+
+        private suspend fun resolveOnce(
+            request: AudioStreamRequest,
+            priority: StreamResolutionPriority,
+            authState0: PlaybackAuthState,
         ): ResolvedAudioStream {
-            val authState = request.authState
+            val authState = authState0
             if (authState.hasLoginCookie && !hasCompleteYouTubeLoginCookies(authState.cookie)) {
                 throw YTPlayerUtils.InvalidPlaybackLoginContextException(
                     videoId = request.mediaId,
@@ -158,7 +191,12 @@ class YoutubeiStreamRepository
                                 throw YTPlayerUtils.BadStreamPlayerResponseException(
                                     videoId = request.mediaId,
                                     failedClients = setOf("MWEB"),
-                                    cause = failure,
+                                    cause = YoutubeiException(
+                                        kind = YoutubeiFailureKind.LOGIN_REQUIRED,
+                                        message = failure.message.orEmpty() + " " + authState.diagnosticsTag(),
+                                        httpStatus = failure.httpStatus,
+                                        cause = failure,
+                                    ),
                                 )
                             }
                             throw YTPlayerUtils.InvalidPlaybackLoginContextException(
@@ -327,6 +365,40 @@ class YoutubeiStreamRepository
             val reason = message.orEmpty()
             return CONTENT_CONFIRMATION_REASONS.any { reason.contains(it, ignoreCase = true) }
         }
+
+        private fun PlaybackAuthState.withoutResidualPlaybackState(): PlaybackAuthState =
+            copy(
+                cookie = null,
+                dataSyncId = null,
+                poToken = null,
+                poTokenGvs = null,
+                poTokenGvsSession = null,
+                poTokenGvsVideoId = null,
+                poTokenPlayer = null,
+                poTokenPlayerVideoId = null,
+                poTokenSubs = null,
+                poTokenSubsVideoId = null,
+                webClientPoTokenEnabled = false,
+            ).normalized()
+
+        /**
+         * Compact, non-sensitive description of the playback auth state. Printed in the playback
+         * error so a screenshot is enough to tell which request shape reached YouTube.
+         */
+        private fun PlaybackAuthState.diagnosticsTag(): String =
+            "[" +
+                "signedIn=" + hasLoginCookie +
+                ",visitor=" + !visitorData.isNullOrBlank() +
+                ",dataSync=" + !dataSyncId.isNullOrBlank() +
+                ",poToken=" + !poTokenGvs.isNullOrBlank() +
+                ",sessionPoToken=" + !poTokenGvsSession.isNullOrBlank() +
+                ",webPoTokens=" + webClientPoTokenEnabled +
+                "]"
+
+        private fun YoutubeiException.isAnonymousRefusal(): Boolean =
+            kind == YoutubeiFailureKind.LOGIN_REQUIRED ||
+                kind == YoutubeiFailureKind.PO_TOKEN ||
+                (kind == YoutubeiFailureKind.HTTP && httpStatus == 401)
 
         private companion object {
             const val LOG_TAG = "YoutubeiResolver"

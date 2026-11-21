@@ -370,10 +370,20 @@ class App : Application(), SingletonImageLoader.Factory {
             if (clearWebAuthSession) {
                 clearPlaybackWebAuthSession(context)
             }
+            // Drop the in-memory playback auth immediately. Otherwise playback keeps using the
+            // previous cookie / PoToken until the DataStore collector catches up, which is how a
+            // signed-out device ends up sending an authenticated-but-dead request and getting
+            // "Please sign in" back from YouTube.
+            YouTube.authState = com.shahdullah.nomatune.innertube.PlaybackAuthState.EMPTY
+            YTPlayerUtils.clearPlaybackAuthCaches()
             CoroutineScope(Dispatchers.IO).launch {
                 context.dataStore.edit { settings ->
                     settings.clearPlaybackAuthSession()
                 }
+                context.dataStore.data.first().let { prefs ->
+                    YouTube.authState = prefs.toPlaybackAuthState()
+                }
+                YTPlayerUtils.clearPlaybackAuthCaches()
             }
         }
     }
