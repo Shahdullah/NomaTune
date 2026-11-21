@@ -10,37 +10,42 @@
  * Do not remove or alter this notice. - Per GPL-3.0 Section 4 & Section 5
  */
 
-package com.shahdullah.nomatune.utils
+package PKG.utils
 
 import android.content.Context
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
-import com.shahdullah.nomatune.constants.AccountChannelHandleKey
-import com.shahdullah.nomatune.constants.AccountEmailKey
-import com.shahdullah.nomatune.constants.AccountNameKey
-import com.shahdullah.nomatune.constants.DataSyncIdKey
-import com.shahdullah.nomatune.constants.InnerTubeCookieKey
-import com.shahdullah.nomatune.constants.PoTokenGvsKey
-import com.shahdullah.nomatune.constants.PoTokenKey
-import com.shahdullah.nomatune.constants.PoTokenPlayerKey
-import com.shahdullah.nomatune.constants.PoTokenSourceUrlKey
-import com.shahdullah.nomatune.constants.VisitorDataKey
-import com.shahdullah.nomatune.constants.WebClientPoTokenEnabledKey
-import com.shahdullah.nomatune.innertube.PlaybackAuthState
-import com.shahdullah.nomatune.innertube.YouTube
 import kotlinx.coroutines.flow.first
+import PKG.constants.AccountChannelHandleKey
+import PKG.constants.AccountEmailKey
+import PKG.constants.AccountNameKey
+import PKG.constants.DataSyncIdKey
+import PKG.constants.InnerTubeCookieKey
+import PKG.constants.PoTokenGvsKey
+import PKG.constants.PoTokenKey
+import PKG.constants.PoTokenPlayerKey
+import PKG.constants.PoTokenSourceUrlKey
+import PKG.constants.VisitorDataKey
+import PKG.innertube.PlaybackAuthState
+import PKG.innertube.YouTube
 
-fun Preferences.toPlaybackAuthState(): PlaybackAuthState =
-    PlaybackAuthState(
+fun Preferences.toPlaybackAuthState(): PlaybackAuthState {
+    val legacyPoToken =
+        this[PoTokenKey]
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
+    return PlaybackAuthState(
         cookie = this[InnerTubeCookieKey],
         visitorData = this[VisitorDataKey],
         dataSyncId = this[DataSyncIdKey],
-        poToken = this[PoTokenKey],
-        poTokenGvs = this[PoTokenGvsKey],
-        poTokenPlayer = this[PoTokenPlayerKey],
-        webClientPoTokenEnabled = this[WebClientPoTokenEnabledKey] ?: false,
+        poToken = legacyPoToken,
+        poTokenGvs = null,
+        poTokenGvsSession = null,
+        poTokenPlayer = null,
+        webClientPoTokenEnabled = legacyPoToken != null,
     ).normalized()
+}
 
 fun MutablePreferences.clearPlaybackAuthSession(clearAccountIdentity: Boolean = true) {
     remove(InnerTubeCookieKey)
@@ -61,8 +66,7 @@ fun MutablePreferences.clearPlaybackLoginContext() {
     remove(DataSyncIdKey)
 }
 
-fun PlaybackAuthState.withoutPlaybackLoginContext(): PlaybackAuthState =
-    copy(dataSyncId = null).normalized()
+fun PlaybackAuthState.withoutPlaybackLoginContext(): PlaybackAuthState = copy(dataSyncId = null).normalized()
 
 fun MutablePreferences.putLegacyPoToken(value: String?) {
     val normalized = value?.trim()?.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
@@ -85,15 +89,15 @@ suspend fun Context.resetPlaybackLoginContext(): PlaybackAuthState {
     return authState
 }
 
-suspend fun <T> Context.retryWithoutPlaybackLoginContext(
-    block: suspend () -> Result<T>,
-): Result<T> {
+suspend fun <T> Context.retryWithoutPlaybackLoginContext(block: suspend () -> Result<T>): Result<T> {
     val initialAuthState = YouTube.currentPlaybackAuthState()
     val initialResult = block()
     if (initialResult.isSuccess) {
+        val repairedAuthState = YouTube.currentPlaybackAuthState()
+        restoreTemporaryPlaybackLoginContext(initialAuthState)
         persistPlaybackAuthRepair(
             initialAuthState = initialAuthState,
-            repairedAuthState = YouTube.currentPlaybackAuthState(),
+            repairedAuthState = repairedAuthState,
         )
         return initialResult
     }
@@ -104,19 +108,41 @@ suspend fun <T> Context.retryWithoutPlaybackLoginContext(
         return initialResult
     }
 
-    YouTube.authState = currentAuthState.withoutPlaybackLoginContext()
-    YTPlayerUtils.clearPlaybackAuthCaches()
-    dataStore.edit { preferences ->
-        preferences.remove(DataSyncIdKey)
+    YouTube.updateAuthState { latest ->
+        if (latest.cookie == currentAuthState.cookie && latest.dataSyncId == currentAuthState.dataSyncId) {
+            latest.withoutPlaybackLoginContext()
+        } else {
+            latest
+        }
     }
-    val retryResult = block()
+    YTPlayerUtils.clearPlaybackAuthCaches()
+    var retryAuthState: PlaybackAuthState? = null
+    val retryResult =
+        try {
+            block().also {
+                retryAuthState = YouTube.currentPlaybackAuthState()
+            }
+        } finally {
+            restoreTemporaryPlaybackLoginContext(currentAuthState)
+        }
     if (retryResult.isSuccess) {
         persistPlaybackAuthRepair(
             initialAuthState = currentAuthState,
-            repairedAuthState = YouTube.currentPlaybackAuthState(),
+            repairedAuthState = requireNotNull(retryAuthState),
         )
     }
     return retryResult
+}
+
+private fun restoreTemporaryPlaybackLoginContext(initialAuthState: PlaybackAuthState) {
+    val dataSyncId = initialAuthState.dataSyncId ?: return
+    YouTube.updateAuthState { current ->
+        if (current.cookie == initialAuthState.cookie && current.dataSyncId == null) {
+            current.copy(dataSyncId = dataSyncId)
+        } else {
+            current
+        }
+    }
 }
 
 private suspend fun Context.persistPlaybackAuthRepair(
@@ -133,11 +159,6 @@ private suspend fun Context.persistPlaybackAuthRepair(
         repairedAuthState.dataSyncId
             ?.takeIf { it.isNotBlank() && it != initialAuthState.dataSyncId }
             ?.let { preferences[DataSyncIdKey] = it }
-            ?: run {
-                if (!initialAuthState.dataSyncId.isNullOrBlank() && repairedAuthState.dataSyncId.isNullOrBlank()) {
-                    preferences.remove(DataSyncIdKey)
-                }
-            }
     }
 }
 

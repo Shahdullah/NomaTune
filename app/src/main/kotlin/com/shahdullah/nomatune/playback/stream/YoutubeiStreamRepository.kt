@@ -16,7 +16,7 @@ import android.content.Context
 import com.shahdullah.nomatune.constants.AudioQuality
 import com.shahdullah.nomatune.innertube.PlaybackAuthState
 import com.shahdullah.nomatune.innertube.YouTube
-import com.shahdullah.nomatune.innertube.utils.parseCookieString
+import com.shahdullah.nomatune.innertube.utils.hasCompleteYouTubeLoginCookies
 import com.shahdullah.nomatune.morideobfuscator.youtubei.YoutubeiAudioQuality
 import com.shahdullah.nomatune.morideobfuscator.youtubei.YoutubeiException
 import com.shahdullah.nomatune.morideobfuscator.youtubei.YoutubeiFailureKind
@@ -91,7 +91,7 @@ class YoutubeiStreamRepository
             priority: StreamResolutionPriority,
         ): ResolvedAudioStream {
             val authState = request.authState
-            if (authState.hasLoginCookie && !hasCompleteLoginCookies(authState.cookie)) {
+            if (authState.hasLoginCookie && !hasCompleteYouTubeLoginCookies(authState.cookie)) {
                 throw YTPlayerUtils.InvalidPlaybackLoginContextException(
                     videoId = request.mediaId,
                     targetUrl = request.mediaUrl,
@@ -304,11 +304,6 @@ class YoutubeiStreamRepository
         suspend fun invalidateSessions() = resolver.invalidateSessions()
 
         fun trimMemory(level: Int) = resolver.trimMemory(level)
-
-        private fun hasCompleteLoginCookies(cookie: String?): Boolean {
-            val map = cookie?.let(::parseCookieString).orEmpty()
-            return listOf("SAPISID", "__Secure-3PAPISID", "__Secure-1PAPISID").any { !map[it].isNullOrBlank() }
-        }
 
         private fun AudioQuality.toYoutubeiQuality(): YoutubeiAudioQuality =
             when (this) {
