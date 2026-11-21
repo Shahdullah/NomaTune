@@ -369,9 +369,14 @@ object Updater {
     }
 
     /** Blocking variant for notification actions, which cannot suspend. */
-    fun getLatestDownloadUrlBlocking(): String {
+    fun getLatestDownloadUrlBlocking(preferredTag: String? = null): String {
         if (!isUpdaterDistribution) return ""
-        val tag = latestReleaseTag ?: runBlocking(Dispatchers.IO) { resolveLatestReleaseTag() }
+        // Prefer the version the caller already resolved: falling back to a blocking network
+        // fetch (or worse, "v<currentVersion>") produced Download actions pointing at 404s.
+        val tag =
+            preferredTag?.takeIf { it.isNotBlank() }
+                ?: latestReleaseTag
+                ?: runBlocking(Dispatchers.IO) { resolveLatestReleaseTag() }
         return UpdateApkFetcher.directApkUrl(
             tag = tag,
             device = BuildConfig.DEVICE,

@@ -41,6 +41,8 @@ import com.shahdullah.nomatune.constants.LastUpdateCheckKey
 import com.shahdullah.nomatune.constants.UpdateChannel
 import com.shahdullah.nomatune.constants.UpdateChannelKey
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CancellationException
+import timber.log.Timber
 
 object UpdateNotificationManager {
     internal const val CHANNEL_ID = "update_notification_channel"
@@ -126,20 +128,28 @@ object UpdateNotificationManager {
 
                 if (now - lastCheck < CHECK_INTERVAL_MS) return@launch
 
-                dataStore.edit { it[LastUpdateCheckKey] = now }
-
                 val versionResult = when (updateChannel) {
                     UpdateChannel.DAILY_NIGHTLY -> Updater.getLatestDailyNightlyVersionName()
                     else -> Updater.getLatestVersionName()
                 }
 
                 versionResult.onSuccess { latestVersion ->
+                    // Only record the check *after* it succeeded. Previously the timestamp was
+                    // written up front, so a failed fetch still suppressed the next attempt for
+                    // CHECK_INTERVAL_MS - and the failure was swallowed silently.
+                    dataStore.edit { it[LastUpdateCheckKey] = now }
                     if (!Updater.isSameVersion(latestVersion, BuildConfig.VERSION_NAME)) {
                         notifyIfNewVersion(context, latestVersion, updateChannel)
                     }
+                }.onFailure { error ->
+                    // Surface the reason instead of failing silently; this is what made
+                    // "no update notification" impossible to diagnose.
+                    reportUpdateFailure(context, error)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                // Silently fail
+                reportUpdateFailure(context, e)
             }
         }
     }
@@ -187,9 +197,12 @@ object UpdateNotificationManager {
         // The Download action must actually download: never open github.com here.
         // This is a broadcast so the download+install happens in-app and the
         // package installer is launched directly when it finishes.
+        // getLatestDownloadUrlBlocking can fall back to "v<currentVersion>" when the release
+        // lookup fails, which would silently point the Download action at a 404. Prefer the
+        // version we were just notified about, and skip the action if nothing resolves.
         val downloadUrl = when (updateChannel) {
             UpdateChannel.DAILY_NIGHTLY -> Updater.getLatestDailyNightlyDownloadUrl()
-            else -> Updater.getLatestDownloadUrlBlocking()
+            else -> Updater.getLatestDownloadUrlBlocking(newVersion)
         }
         val downloadIntent = Intent(context, UpdateInstallReceiver::class.java).apply {
             action = UpdateInstallReceiver.ACTION_INSTALL_UPDATE
@@ -225,6 +238,14 @@ object UpdateNotificationManager {
         } catch (e: SecurityException) {
             // Missing POST_NOTIFICATIONS permission
         }
+    }
+
+    /**
+     * Logs why an update check produced no notification. Kept in Timber rather than the UI
+     * because this runs from a background scope.
+     */
+    private fun reportUpdateFailure(context: Context, error: Throwable) {
+        Timber.tag("UpdateNotification").w(error, "Update check failed")
     }
 
     fun cancelUpdateNotification(context: Context) {

@@ -577,9 +577,11 @@ class MainActivity : ComponentActivity() {
                             else -> Updater.getLatestVersionName()
                         }
                         versionResult.onSuccess {
-                            if (Updater.isUpdateAvailable(it, BuildConfig.VERSION_NAME)) {
-                                latestVersionName = it
-                            }
+                            // Always record the latest published version. Previously this was
+                            // only assigned when an update existed, so the Updates screen kept
+                            // showing a stale value ("you are on the latest release") even after
+                            // the release list had moved on.
+                            latestVersionName = it
                         }
                     }
                 }
@@ -1162,18 +1164,23 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    // Ported from ArchiveTune: the Updates screen sits above the mini-player
+                    // rather than below it, so the sheet is not pushed behind the player bar.
+                    val isAppUpdateScreen =
+                        currentRoute?.substringBefore('?') == "settings/update"
                     val playerAwareWindowInsets =
                         remember(
                             useRail,
                             bottomInset,
                             shouldShowNavigationBar,
                             playerBottomSheetState.isDismissed,
+                            isAppUpdateScreen,
                         ) {
                             var bottom = bottomInset
                             if (shouldShowNavigationBar && !useRail) {
                                 bottom += getBottomNavPadding() + floatingBarsBottomPadding
                             }
-                            if (!playerBottomSheetState.isDismissed) {
+                            if (!isAppUpdateScreen && !playerBottomSheetState.isDismissed) {
                                 bottom += MiniPlayerHeight + MiniPlayerBottomSpacing
                             }
                             windowsInsets
@@ -1967,117 +1974,117 @@ class MainActivity : ComponentActivity() {
                                                 },
                                             )
 
-                                            // Ported from ArchiveTune: the home quick-actions FAB.
-                                            // shouldShowHomeShuffleButton was computed but unused, which is
-                                            // why the shuffle/recognition/together button was missing.
-                                            val homeOverflowFabBottomPadding =
-                                                bottomInset +
-                                                    floatingBarsBottomPadding +
-                                                    navVisibleHeight +
-                                                    HomeOverflowFabSpacing +
-                                                    if (playerBottomSheetState.isCollapsed) {
-                                                        MiniPlayerHeight + MiniPlayerBottomSpacing
-                                                    } else {
-                                                        0.dp
-                                                    }
-                                            HomeOverflowFabVisibility(
-                                                visible = showHomeOverflowFab,
-                                                modifier =
-                                                    Modifier
-                                                        .align(Alignment.BottomEnd)
-                                                        .padding(
-                                                            end = NavigationBarHorizontalPadding,
-                                                            bottom = homeOverflowFabBottomPadding,
-                                                        ),
-                                            ) {
-                                                // Use the composition locals, not the Activity's injected
-                                                // fields: HomeOverflowFab lives inside the content lambda.
-                                                val fabDatabase = LocalDatabase.current
-                                                val fabPlayerConnection = LocalPlayerConnection.current
-                                                HomeOverflowFab(
-                                                    expanded = homeOverflowMenuExpanded,
-                                                    onExpandedChange = { homeOverflowMenuExpanded = it },
-                                                    onShuffleClick = {
-                                                        val useLocalSource =
-                                                            when {
-                                                                allLocalItems.isNotEmpty() && allYtItems.isNotEmpty() -> {
-                                                                    Random.nextFloat() < 0.5f
-                                                                }
-
-                                                                allLocalItems.isNotEmpty() -> {
-                                                                    true
-                                                                }
-
-                                                                else -> {
-                                                                    false
-                                                                }
+                                        }
+                                        // Ported from ArchiveTune: the home quick-actions FAB.
+                                        // shouldShowHomeShuffleButton was computed but unused, which is
+                                        // why the shuffle/recognition/together button was missing.
+                                        val homeOverflowFabBottomPadding =
+                                            bottomInset +
+                                                floatingBarsBottomPadding +
+                                                navVisibleHeight +
+                                                HomeOverflowFabSpacing +
+                                                if (playerBottomSheetState.isCollapsed) {
+                                                    MiniPlayerHeight + MiniPlayerBottomSpacing
+                                                } else {
+                                                    0.dp
+                                                }
+                                        HomeOverflowFabVisibility(
+                                            visible = showHomeOverflowFab,
+                                            modifier =
+                                                Modifier
+                                                    .align(Alignment.BottomEnd)
+                                                    .padding(
+                                                        end = NavigationBarHorizontalPadding,
+                                                        bottom = homeOverflowFabBottomPadding,
+                                                    ),
+                                        ) {
+                                            // Use the composition locals, not the Activity's injected
+                                            // fields: HomeOverflowFab lives inside the content lambda.
+                                            val fabDatabase = LocalDatabase.current
+                                            val fabPlayerConnection = LocalPlayerConnection.current
+                                            HomeOverflowFab(
+                                                expanded = homeOverflowMenuExpanded,
+                                                onExpandedChange = { homeOverflowMenuExpanded = it },
+                                                onShuffleClick = {
+                                                    val useLocalSource =
+                                                        when {
+                                                            allLocalItems.isNotEmpty() && allYtItems.isNotEmpty() -> {
+                                                                Random.nextFloat() < 0.5f
                                                             }
 
-                                                        coroutineScope.launch(Dispatchers.Main) {
-                                                            if (useLocalSource) {
-                                                                when (val luckyItem = allLocalItems.random()) {
-                                                                    is Song -> {
-                                                                        fabPlayerConnection?.playQueue(
-                                                                            if (luckyItem.song.isLocal) {
-                                                                                ListQueue(items = listOf(luckyItem.toMediaItem()))
-                                                                            } else {
-                                                                                YouTubeQueue.radio(luckyItem.toMediaMetadata())
-                                                                            },
-                                                                        )
-                                                                    }
+                                                            allLocalItems.isNotEmpty() -> {
+                                                                true
+                                                            }
 
-                                                                    is Album -> {
-                                                                        val albumWithSongs =
-                                                                            withContext(Dispatchers.IO) {
-                                                                                fabDatabase.albumWithSongs(luckyItem.id).first()
-                                                                            }
-
-                                                                        albumWithSongs?.let {
-                                                                            fabPlayerConnection?.playQueue(LocalAlbumRadio(it))
-                                                                        }
-                                                                    }
-
-                                                                    else -> Unit
-                                                                }
-                                                            } else {
-                                                                when (val luckyItem = allYtItems.random()) {
-                                                                    is SongItem -> {
-                                                                        fabPlayerConnection?.playQueue(
-                                                                            YouTubeQueue.radio(luckyItem.toMediaMetadata()),
-                                                                        )
-                                                                    }
-
-                                                                    is AlbumItem -> {
-                                                                        fabPlayerConnection?.playQueue(
-                                                                            YouTubeAlbumRadio(luckyItem.playlistId),
-                                                                        )
-                                                                    }
-
-                                                                    is ArtistItem -> {
-                                                                        luckyItem.radioEndpoint?.let {
-                                                                            fabPlayerConnection?.playQueue(YouTubeQueue(it))
-                                                                        }
-                                                                    }
-
-                                                                    is PlaylistItem -> {
-                                                                        luckyItem.playEndpoint?.let {
-                                                                            fabPlayerConnection?.playQueue(YouTubeQueue.playlist(it))
-                                                                        }
-                                                                    }
-
-                                                                    else -> Unit
-                                                                }
+                                                            else -> {
+                                                                false
                                                             }
                                                         }
-                                                    },
-                                                    onMusicRecognitionClick = {
-                                                        navController.navigate(MusicRecognitionRoute)
-                                                    },
-                                                    onMusicTogetherClick = {
-                                                        navController.navigate("settings/music_together")
-                                                    },
-                                                )
-                                            }
+
+                                                    coroutineScope.launch(Dispatchers.Main) {
+                                                        if (useLocalSource) {
+                                                            when (val luckyItem = allLocalItems.random()) {
+                                                                is Song -> {
+                                                                    fabPlayerConnection?.playQueue(
+                                                                        if (luckyItem.song.isLocal) {
+                                                                            ListQueue(items = listOf(luckyItem.toMediaItem()))
+                                                                        } else {
+                                                                            YouTubeQueue.radio(luckyItem.toMediaMetadata())
+                                                                        },
+                                                                    )
+                                                                }
+
+                                                                is Album -> {
+                                                                    val albumWithSongs =
+                                                                        withContext(Dispatchers.IO) {
+                                                                            fabDatabase.albumWithSongs(luckyItem.id).first()
+                                                                        }
+
+                                                                    albumWithSongs?.let {
+                                                                        fabPlayerConnection?.playQueue(LocalAlbumRadio(it))
+                                                                    }
+                                                                }
+
+                                                                else -> Unit
+                                                            }
+                                                        } else {
+                                                            when (val luckyItem = allYtItems.random()) {
+                                                                is SongItem -> {
+                                                                    fabPlayerConnection?.playQueue(
+                                                                        YouTubeQueue.radio(luckyItem.toMediaMetadata()),
+                                                                    )
+                                                                }
+
+                                                                is AlbumItem -> {
+                                                                    fabPlayerConnection?.playQueue(
+                                                                        YouTubeAlbumRadio(luckyItem.playlistId),
+                                                                    )
+                                                                }
+
+                                                                is ArtistItem -> {
+                                                                    luckyItem.radioEndpoint?.let {
+                                                                        fabPlayerConnection?.playQueue(YouTubeQueue(it))
+                                                                    }
+                                                                }
+
+                                                                is PlaylistItem -> {
+                                                                    luckyItem.playEndpoint?.let {
+                                                                        fabPlayerConnection?.playQueue(YouTubeQueue.playlist(it))
+                                                                    }
+                                                                }
+
+                                                                else -> Unit
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                                onMusicRecognitionClick = {
+                                                    navController.navigate(MusicRecognitionRoute)
+                                                },
+                                                onMusicTogetherClick = {
+                                                    navController.navigate("settings/music_together")
+                                                },
+                                            )
                                         }
                                     }
                                 },
