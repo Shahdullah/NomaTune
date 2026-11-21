@@ -151,6 +151,8 @@ import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.IconButtonDefaults
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -1312,6 +1314,7 @@ fun LazyListScope.SimilarRecommendationsContainer(
     }
 }
 
+@Composable
 fun HomeCategoryChips(
     chips: List<HomePage.Chip>,
     selectedChip: HomePage.Chip?,
@@ -1332,7 +1335,7 @@ fun HomeCategoryChips(
                 checked = chip == selectedChip,
                 onCheckedChange = { onChipSelected(chip) },
                 colors =
-                    ToggleButtonDefaults.colors(
+                    ToggleButtonDefaults.toggleButtonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         checkedContainerColor = MaterialTheme.colorScheme.primary,
@@ -1350,6 +1353,7 @@ fun HomeCategoryChips(
     }
 }
 
+@Composable
 fun HomeSectionHeader(
     title: String,
     modifier: Modifier = Modifier,
@@ -1380,7 +1384,7 @@ fun HomeSectionHeader(
             label?.let {
                 Text(
                     text = it,
-                    style = MaterialTheme.typography.labelLargeEmphasized,
+                    style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1388,7 +1392,7 @@ fun HomeSectionHeader(
             }
             Text(
                 text = title,
-                style = MaterialTheme.typography.headlineSmallEmphasized,
+                style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
