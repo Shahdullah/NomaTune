@@ -49,9 +49,9 @@ class RecapActionsUseCase @Inject constructor(
     }
 
     private suspend fun eligibleSongs(data: RecapData): List<Song> {
-        val songs = repository.songs(data.songs.map { it.id }).filter {
-            !it.song.isPodcast && it.artists.none { artist -> artist.blockedAt != null }
-        }
+        // ArchiveTune also excludes podcasts and blocked artists here; NomaTune has
+        // neither isPodcast nor blockedAt, so every resolved song is eligible.
+        val songs = repository.songs(data.songs.map { it.id })
         check(songs.isNotEmpty())
         return songs
     }

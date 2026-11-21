@@ -459,6 +459,15 @@ class MusicService :
 
     private val normalizeFactor = MutableStateFlow(1f)
     var playerVolume = MutableStateFlow(1f)
+
+    /*
+     * Ported from ArchiveTune for the Year in Music soundtrack. The recap reel plays a
+     * generated queue; [recapAudioMuted] silences it without touching the user's own
+     * volume, and [recapQueueActive] tells the UI whether the recap queue is the current one.
+     */
+    val recapAudioMuted = MutableStateFlow(false)
+    val recapQueueActive = MutableStateFlow(false)
+    private var recapAudioQueue: Queue? = null
     private val audioFocusVolumeFactor = MutableStateFlow(1f)
     private var crossfadeEnabled = false
     private var crossfadeDurationMs = 0L
@@ -1490,6 +1499,7 @@ class MusicService :
             normalizeFactor.takeIf { it.isFinite() }?.coerceIn(MIN_AUDIO_NORMALIZATION_FACTOR, maxSafeGainFactor) ?: 1f
         val safeAudioFocusVolumeFactor =
             audioFocusVolumeFactor.takeIf { it.isFinite() }?.coerceIn(MIN_AUDIO_FOCUS_VOLUME_FACTOR, 1f) ?: 1f
+        if (recapAudioMuted.value) return 0f
         return (safePlayerVolume * safeNormalizeFactor * safeAudioFocusVolumeFactor).coerceIn(0f, maxSafeGainFactor)
     }
 
@@ -2600,6 +2610,31 @@ class MusicService :
                     .forEach(::insert)
             }
         }
+    }
+
+    /** Silences the recap soundtrack without altering the user's own volume. */
+    fun setRecapMuted(muted: Boolean) {
+        val nextMuted = muted && recapAudioQueue === currentQueue && recapQueueActive.value
+        if (recapAudioMuted.value == nextMuted) return
+        recapAudioMuted.value = nextMuted
+        applyEffectiveVolume()
+    }
+
+    /**
+     * Plays the recap soundtrack queue. Returns false when [playQueue] rejected it
+     * (for example a Together guest without control permission).
+     */
+    fun playRecapQueue(queue: ListQueue): Boolean {
+        setRecapMuted(false)
+        recapAudioQueue = queue
+        playQueue(queue)
+        if (currentQueue !== queue) {
+            recapAudioQueue = null
+            recapQueueActive.value = false
+            return false
+        }
+        recapQueueActive.value = true
+        return true
     }
 
     fun playQueue(
