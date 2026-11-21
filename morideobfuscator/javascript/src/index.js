@@ -32,25 +32,7 @@ const SUPPORTED_AUDIO_MIME_TYPES = new Set([
   "audio/3gpp",
 ]);
 const ANONYMOUS_CLIENT = "MWEB";
-const ANONYMOUS_DIRECT_CLIENT = "VISIONOS";
 const AUTHENTICATED_CLIENT = "WEB_CREATOR";
-const TRANSIENT_FAILURE_KINDS = new Set(["NETWORK", "TIMEOUT"]);
-const ROTATABLE_FAILURE_KINDS = new Set([
-  "NO_FORMAT",
-  "LOGIN_REQUIRED",
-  "UNAVAILABLE",
-  "DECIPHER",
-  "HTTP",
-  "PO_TOKEN",
-]);
-const TOKEN_RETRY_FAILURE_KINDS = new Set([
-  "LOGIN_REQUIRED",
-  "NO_FORMAT",
-  "UNAVAILABLE",
-  "DECIPHER",
-  "HTTP",
-  "PO_TOKEN",
-]);
 const AUTHENTICATED_CLIENT_VERSION = "1.20260708.06.00";
 const CATALOG_DURATION_TOLERANCE_SECONDS = 2;
 const MAX_CATALOG_REPLACEMENT_CANDIDATES = 5;
@@ -120,7 +102,6 @@ let catalogSession;
 let catalogSessionIdentity;
 let stagedPlayerId;
 let stagedPlayerSource;
-const suppressedPoTokenIdentities = new Set();
 
 function normalizedString(value) {
   const normalized = typeof value === "string" ? value.trim() : "";
@@ -654,10 +635,7 @@ async function resolveWithClient(youtube, request, client, preparedInfo) {
     ...(info.streaming_data?.formats || []),
   ].filter(isEligibleAudioFormat);
   if (formats.length === 0) {
-    const sabrOnly = Boolean(info.streaming_data?.server_abr_streaming_url);
-    const error = new Error(
-      reason || (sabrOnly ? `YouTube offered only SABR streams to ${client}` : "No direct audio format"),
-    );
+    const error = new Error(reason || "No direct audio format");
     error.kind = "NO_FORMAT";
     throw error;
   }
@@ -726,42 +704,6 @@ async function resolveWithClient(youtube, request, client, preparedInfo) {
   };
 }
 
-async function resolveWithClients(youtube, request, clients) {
-  const attempts = [];
-  let primaryFailure;
-  for (const client of clients) {
-    try {
-      return await resolveWithClient(youtube, request, client);
-    } catch (error) {
-      const kind = failureKind(error);
-      // A dead network is worth reporting as-is; everything else is client-specific
-      // and the next client may well succeed (SABR-only, "Please sign in", 403, ...).
-      if (TRANSIENT_FAILURE_KINDS.has(kind)) throw error;
-      attempts.push(`${client}: ${failureMessage(error)}`);
-      if (!primaryFailure) {
-        if (!ROTATABLE_FAILURE_KINDS.has(kind)) throw error;
-        primaryFailure = error;
-      }
-    }
-  }
-  if (primaryFailure) primaryFailure.message = attempts.join("; ");
-  throw primaryFailure;
-}
-
-function hasPoTokens(request) {
-  return Boolean(normalizedString(request.videoPoToken) || normalizedString(request.sessionPoToken));
-}
-
-function stripPoTokens(request) {
-  return { ...request, videoPoToken: undefined, sessionPoToken: undefined };
-}
-
-// Anonymous playback never needs a PoToken for the native clients, and YouTube answers
-// "Please sign in" when a stale/rejected token rides along with the web clients.
-function anonymousWithoutTokens(request) {
-  return { ...stripPoTokens(request), visitorData: undefined };
-}
-
 function parseRequest(requestJson) {
   const request = JSON.parse(requestJson);
   if (!/^[A-Za-z0-9_-]{6,32}$/.test(String(request.mediaId || ""))) {
@@ -781,69 +723,26 @@ async function prepare(requestJson) {
   }
 }
 
-async function resolveForRequest(youtube, request, authenticated) {
-  const clients = authenticated
-    ? [AUTHENTICATED_CLIENT]
-    : [ANONYMOUS_CLIENT, ANONYMOUS_DIRECT_CLIENT, "ANDROID_VR", "IOS", "ANDROID"];
-  try {
-    return await resolveWithClients(youtube, request, clients);
-  } catch (error) {
-    if (failureKind(error) !== "UNAVAILABLE" || !error.videoInfo) throw error;
-    const value = await resolveCatalogReplacement(youtube, request, error.videoInfo);
-    if (!value) throw error;
-    return value;
-  }
-}
-
 async function resolvePrepared(requestJson) {
   try {
     const request = parseRequest(requestJson);
     const identity = createSessionIdentity(request);
+    if (!session || identity !== sessionIdentity) {
+      const error = new Error("youtubei.js session was not prepared");
+      error.kind = "INTERNAL";
+      throw error;
+    }
     const authenticated = Boolean(normalizedString(request.cookie));
-    // Once an anonymous PoToken has been rejected, keep resolving anonymously
-    // without tokens instead of replaying the rejected token on every attempt.
-    const poTokensSuppressed = !authenticated && suppressedPoTokenIdentities.has(identity);
-    // Anonymous playback is resolved without any PoToken or cached visitor identity:
-    // the native clients in the rotation do not need either, and a stale token/visitor
-    // is exactly what makes every client answer "Please sign in".
-    const effectiveRequest = authenticated
-      ? request
-      : (poTokensSuppressed ? stripPoTokens(request) : anonymousWithoutTokens(request));
-    const effectiveIdentity = createSessionIdentity(effectiveRequest);
-    if (!session || effectiveIdentity !== sessionIdentity) {
-      await getSession(effectiveRequest);
-    }
+    const client = authenticated ? AUTHENTICATED_CLIENT : ANONYMOUS_CLIENT;
+    let value;
     try {
-      return JSON.stringify({
-        ok: true,
-        value: await resolveForRequest(session, effectiveRequest, authenticated),
-      });
+      value = await resolveWithClient(session, request, client);
     } catch (error) {
-      if (
-        authenticated ||
-        poTokensSuppressed ||
-        !hasPoTokens(request) ||
-        !TOKEN_RETRY_FAILURE_KINDS.has(failureKind(error))
-      ) {
-        throw error;
-      }
-      // A visitor-bound PoToken that YouTube rejects turns *every* anonymous client
-      // into "Please sign in"/403. Rebuild the session without tokens and retry once.
-      session = undefined;
-      sessionIdentity = undefined;
-      const tokenlessRequest = stripPoTokens(request);
-      const tokenlessSession = await getSession(tokenlessRequest);
-      try {
-        const value = await resolveForRequest(tokenlessSession, tokenlessRequest, false);
-        suppressedPoTokenIdentities.add(identity);
-        return JSON.stringify({ ok: true, value });
-      } catch (tokenlessFailure) {
-        suppressedPoTokenIdentities.add(identity);
-        tokenlessFailure.message =
-          `${failureMessage(error)}; without PoToken: ${failureMessage(tokenlessFailure)}`;
-        throw tokenlessFailure;
-      }
+      if (failureKind(error) !== "UNAVAILABLE" || !error.videoInfo) throw error;
+      value = await resolveCatalogReplacement(session, request, error.videoInfo);
+      if (!value) throw error;
     }
+    return JSON.stringify({ ok: true, value });
   } catch (error) {
     return JSON.stringify({
       ok: false,
@@ -866,6 +765,5 @@ globalThis.NomaTuneYoutubei = Object.freeze({
     catalogSessionIdentity = undefined;
     stagedPlayerId = undefined;
     stagedPlayerSource = undefined;
-    suppressedPoTokenIdentities.clear();
   },
 });
