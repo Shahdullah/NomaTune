@@ -10,25 +10,25 @@
  * Do not remove or alter this notice. - Per GPL-3.0 Section 4 & Section 5
  */
 
-package PKG.utils
+package com.shahdullah.nomatune.utils
 
 import android.content.Context
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import com.shahdullah.nomatune.constants.AccountChannelHandleKey
+import com.shahdullah.nomatune.constants.AccountEmailKey
+import com.shahdullah.nomatune.constants.AccountNameKey
+import com.shahdullah.nomatune.constants.DataSyncIdKey
+import com.shahdullah.nomatune.constants.InnerTubeCookieKey
+import com.shahdullah.nomatune.constants.PoTokenGvsKey
+import com.shahdullah.nomatune.constants.PoTokenKey
+import com.shahdullah.nomatune.constants.PoTokenPlayerKey
+import com.shahdullah.nomatune.constants.PoTokenSourceUrlKey
+import com.shahdullah.nomatune.constants.VisitorDataKey
+import com.shahdullah.nomatune.innertube.PlaybackAuthState
+import com.shahdullah.nomatune.innertube.YouTube
 import kotlinx.coroutines.flow.first
-import PKG.constants.AccountChannelHandleKey
-import PKG.constants.AccountEmailKey
-import PKG.constants.AccountNameKey
-import PKG.constants.DataSyncIdKey
-import PKG.constants.InnerTubeCookieKey
-import PKG.constants.PoTokenGvsKey
-import PKG.constants.PoTokenKey
-import PKG.constants.PoTokenPlayerKey
-import PKG.constants.PoTokenSourceUrlKey
-import PKG.constants.VisitorDataKey
-import PKG.innertube.PlaybackAuthState
-import PKG.innertube.YouTube
 
 fun Preferences.toPlaybackAuthState(): PlaybackAuthState {
     val legacyPoToken =
