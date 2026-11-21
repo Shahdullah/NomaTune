@@ -1164,23 +1164,22 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // Ported from ArchiveTune: the Updates screen sits above the mini-player
-                    // rather than below it, so the sheet is not pushed behind the player bar.
-                    val isAppUpdateScreen =
-                        currentRoute?.substringBefore('?') == "settings/update"
+                    // The Updates screen must reserve the mini-player height like every other
+                    // screen. Excluding it here (added in v1.3.37) let the content run underneath
+                    // the player bar, which pushed the update sheet's "Update" button off the
+                    // visible bottom edge.
                     val playerAwareWindowInsets =
                         remember(
                             useRail,
                             bottomInset,
                             shouldShowNavigationBar,
                             playerBottomSheetState.isDismissed,
-                            isAppUpdateScreen,
                         ) {
                             var bottom = bottomInset
                             if (shouldShowNavigationBar && !useRail) {
                                 bottom += getBottomNavPadding() + floatingBarsBottomPadding
                             }
-                            if (!isAppUpdateScreen && !playerBottomSheetState.isDismissed) {
+                            if (!playerBottomSheetState.isDismissed) {
                                 bottom += MiniPlayerHeight + MiniPlayerBottomSpacing
                             }
                             windowsInsets

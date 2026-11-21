@@ -299,21 +299,25 @@ object Updater {
             ?: emptyList()
     }
 
-    suspend fun getLatestVersionName(): Result<String> =
-        getLatestReleaseInfo().map { latest ->
+    // forceRefresh = true is used by every user-initiated "check for update". Without it
+    // getAllReleases() serves a 6-hour cache, so a freshly published release was invisible
+    // until the cache expired -- the Update screen said "you are on the latest release"
+    // while the changelog (which does force a refresh) already listed the new build.
+    suspend fun getLatestVersionName(forceRefresh: Boolean = false): Result<String> =
+        getLatestReleaseInfo(forceRefresh = forceRefresh).map { latest ->
             preferredReleaseVersionNameOrNull(latest) ?: latest.name.ifBlank { latest.tagName }
         }
 
-    suspend fun getLatestReleaseNotes(): Result<String?> =
-        getLatestReleaseInfo().map { it.body }
+    suspend fun getLatestReleaseNotes(forceRefresh: Boolean = false): Result<String?> =
+        getLatestReleaseInfo(forceRefresh = forceRefresh).map { it.body }
 
-    suspend fun getLatestReleaseInfo(): Result<ReleaseInfo> =
+    suspend fun getLatestReleaseInfo(forceRefresh: Boolean = false): Result<ReleaseInfo> =
         runCatching {
             if (!isUpdaterDistribution) {
                 throw IllegalStateException("Updater is not available for this distribution")
             }
 
-            val releases = getAllReleases().getOrThrow()
+            val releases = getAllReleases(forceRefresh = forceRefresh).getOrThrow()
             val latest = findLatestRelease(releases)
                 ?: throw IllegalStateException("No releases found")
             lastCheckTime = System.currentTimeMillis()

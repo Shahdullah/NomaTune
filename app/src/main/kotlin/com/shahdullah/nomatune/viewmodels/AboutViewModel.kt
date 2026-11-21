@@ -511,7 +511,7 @@ class AboutViewModel
                                         id = "discord",
                                         iconResId = R.drawable.alternate_email,
                                         labelResId = R.string.about_content_desc_discord,
-                                        url = "https://discord.com/users/840839409640800258",
+                                        url = "https://discord.gg/6yqZY6xj",
                                     ),
                                 ),
                         ),

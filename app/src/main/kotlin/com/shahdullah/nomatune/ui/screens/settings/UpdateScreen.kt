@@ -259,11 +259,14 @@ fun UpdateScreen(
 
         Spacer(Modifier.height(12.dp))
 
+        // Release notes scroll on their own and are height-capped. Previously they were
+        // weighted inside the sheet's column, so a long changelog pushed the Update button
+        // past the bottom of the screen and it could not be reached.
         Box(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .weight(1f, fill = false)
+                    .heightIn(max = 320.dp)
                     .verticalScroll(rememberScrollState()),
         ) {
             val notes = updateSheetNotes
@@ -313,7 +316,7 @@ fun UpdateScreen(
             Text(text = stringResource(R.string.update_text))
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(24.dp))
     }
 
     val onCheckForUpdate: () -> Unit = {
@@ -336,10 +339,13 @@ fun UpdateScreen(
                     }
 
                     else -> {
-                        Updater.getLatestReleaseNotes().onSuccess { notes ->
+                        // forceRefresh: a manual tap must always hit the network. The cached
+                        // release list is 6 hours old at most, which made a just-published
+                        // build look like "you are on the latest release".
+                        Updater.getLatestReleaseNotes(forceRefresh = true).onSuccess { notes ->
                             updateSheetNotes = notes
                         }
-                        Updater.getLatestVersionName()
+                        Updater.getLatestVersionName(forceRefresh = true)
                     }
                 }
 

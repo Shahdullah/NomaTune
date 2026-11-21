@@ -182,7 +182,9 @@ fun AboutScreen(
         profileUrl = "https://github.com/Shahdullah",
         github = "https://github.com/Shahdullah",
         website = "https://nomatune.vercel.app",
-        discord = "https://discord.com/users/886971572668219392"
+        // Was a discord.com/users/<id> profile deep link, which opened a stranger's
+        // profile. Tapping the developer's Discord chip must open the NomaTune server.
+        discord = "https://discord.gg/6yqZY6xj"
     )
     Scaffold(
         topBar = {
