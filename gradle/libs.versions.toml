@@ -7,6 +7,7 @@ kotlinMetadata = "2.4.0"
 compose = "1.12.0-alpha03"
 lifecycle = "2.10.0"
 material3 = "1.5.0-alpha21"
+graphicsShapes = "1.1.0"
 media3 = "1.10.1"
 room = "2.8.4"
 hilt = "2.59.2"
@@ -82,6 +83,7 @@ viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose",
 lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 
 material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
+androidx-graphics-shapes = { group = "androidx.graphics", name = "graphics-shapes", version.ref = "graphicsShapes" }
 
 coil = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-gif = { module = "io.coil-kt.coil3:coil-gif", version.ref = "coil" }

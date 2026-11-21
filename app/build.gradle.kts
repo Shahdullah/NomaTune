@@ -33,8 +33,8 @@ android {
     applicationId = "com.shahdullah.nomatune"
         minSdk = 26
         targetSdk = 37
-        versionCode = 47
-        versionName = "1.3.33"
+        versionCode = 48
+        versionName = "1.3.34"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -223,6 +223,7 @@ dependencies {
     implementation(libs.coroutines.guava)
     implementation(libs.concurrent.futures)
 
+    implementation(libs.androidx.graphics.shapes)
     implementation(libs.activity)
     implementation(libs.navigation)
     implementation(libs.hilt.navigation)

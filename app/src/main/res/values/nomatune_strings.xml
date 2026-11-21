@@ -584,4 +584,21 @@
     <string name="navigation_bar_background_apple_music">Apple Music mode uses its own glass background</string>
     <string name="acrylic">Acrylic</string>
     <string name="glass">Glass</string>
+
+    <!-- Ported from ArchiveTune for the listening-stats screen. -->
+<string name="stats_artist_breakdown">Artist breakdown</string>
+<string name="stats_empty_message">Songs you play will appear here with listening trends and rankings.</string>
+<string name="stats_empty_title">No listening stats yet</string>
+<string name="stats_listening_patterns">Listening patterns</string>
+<string name="stats_most_active">Most active</string>
+<string name="stats_pause_song">Pause</string>
+<string name="stats_period_empty_message">Pick another time range, or play some music and it will show up here.</string>
+<string name="stats_period_empty_title">Nothing played in this period</string>
+<string name="stats_rank">#%1$d</string>
+<string name="stats_rank_description">Rank %1$d</string>
+<string name="stats_show_all_songs">Show all %1$d songs</string>
+<string name="stats_show_top_songs">Show top 5</string>
+<string name="stats_time_range">Time range</string>
+<string name="stats_top_songs">Top songs</string>
+<string name="stats_year_picker_message">Pick a year to open its recap.</string>
 </resources>
