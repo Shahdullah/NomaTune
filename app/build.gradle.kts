@@ -16,13 +16,16 @@ if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
 
+// NomaTune's own Discord application. Must match the one that owns the Rich Presence
+// artwork and the discord-<id>:// redirect, otherwise presence is attributed to (and
+// authorised by) a different app.
 val discordApplicationId =
     (
         localProperties.getProperty("DISCORD_APPLICATION_ID")
             ?: System.getenv("DISCORD_APPLICATION_ID")
-            ?: "1165706613961789445"
+            ?: "1573732062429577318"
         ).trim()
-val discordApplicationIdLong = discordApplicationId.toLongOrNull() ?: 1165706613961789445L
+val discordApplicationIdLong = discordApplicationId.toLongOrNull() ?: 1573732062429577318L
 val discordRedirectScheme = "discord-$discordApplicationId"
 
 android {
@@ -33,8 +36,8 @@ android {
     applicationId = "com.shahdullah.nomatune"
         minSdk = 26
         targetSdk = 37
-        versionCode = 53
-        versionName = "1.3.39"
+        versionCode = 54
+        versionName = "1.3.40"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
