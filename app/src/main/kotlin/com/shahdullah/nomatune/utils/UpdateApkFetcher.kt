@@ -22,6 +22,7 @@ import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlinx.coroutines.sync.withLock
 import java.util.zip.ZipFile
 
 /**
@@ -42,10 +43,27 @@ object UpdateApkFetcher {
         timeoutMs: Int = READ_TIMEOUT_MS,
     ): Boolean {
         val safeUrl = url.takeIf { it.isNotBlank() } ?: return false
-        val updateDir = File(context.cacheDir, UPDATE_DIRECTORY).apply { mkdirs() }
-        val target = File(updateDir, APK_FILE_NAME)
+        // Same directory layout and same lock as [AppUpdateInstaller]: two entry points,
+        // one shared cache dir, so neither may clear the other's work. The directory is
+        // created and pruned *inside* the lock, otherwise a waiter could wipe the
+        // directory of the download that currently holds it.
         return runCatching {
-            updateDir.listFiles()?.forEach { file -> file.deleteRecursively() }
+            AppUpdateInstaller.downloadMutex.withLock {
+                val updateDir = AppUpdateInstaller.newDownloadDirectory(context)
+                AppUpdateInstaller.pruneStaleDownloads(context, keep = updateDir)
+                downloadAndLaunch(context, safeUrl, updateDir, File(updateDir, APK_FILE_NAME), timeoutMs)
+            }
+        }.getOrDefault(false)
+    }
+
+    private fun downloadAndLaunch(
+        context: Context,
+        safeUrl: String,
+        updateDir: File,
+        target: File,
+        timeoutMs: Int,
+    ): Boolean {
+        runCatching {
             val connection =
                 (URL(safeUrl).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
@@ -147,7 +165,6 @@ object UpdateApkFetcher {
         "https://github.com/Shahdullah/NomaTune/releases/download/$tag/" +
             "app-$distributionPrefix$device-$architecture-release.apk"
 
-    private const val UPDATE_DIRECTORY = "app_update"
     private const val APK_FILE_NAME = "nomatune-update.apk"
     private const val EXTRACTED_APK_FILE_NAME = "nomatune-update-extracted.apk"
     private const val DOWNLOAD_FILE_NAME = "nomatune-update.apk"

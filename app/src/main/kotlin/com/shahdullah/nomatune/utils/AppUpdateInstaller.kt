@@ -19,6 +19,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import com.shahdullah.nomatune.BuildConfig
 import java.io.File
@@ -29,6 +31,37 @@ import java.util.Locale
 import java.util.zip.ZipFile
 
 object AppUpdateInstaller {
+    /**
+     * Serialises every update download in the process.
+     *
+     * The in-app "Update" button ([AppUpdateInstaller]) and the notification action
+     * ([UpdateApkFetcher]) are independent entry points but they share one cache
+     * directory, and both clear that directory before writing. Pressing Update twice,
+     * or tapping the notification while the sheet is downloading, deleted the first
+     * download's APK out from under the installer, which surfaced as
+     * "The source file doesn't exist". Downloads are now serialised, and each gets
+     * its own directory as a second layer of protection.
+     */
+    internal val downloadMutex = Mutex()
+
+    /** Unique per-download directory so a concurrent download can never clobber a finished one. */
+    internal fun newDownloadDirectory(context: Context): File {
+        val root = File(context.cacheDir, UpdateDirectoryName).apply { mkdirs() }
+        val dir = File(root, "run-${System.currentTimeMillis()}-${System.nanoTime()}")
+        dir.mkdirs()
+        return dir
+    }
+
+    /** Deletes stale download directories left behind by earlier runs. */
+    internal fun pruneStaleDownloads(context: Context, keep: File?) {
+        val root = File(context.cacheDir, UpdateDirectoryName)
+        root.listFiles()?.forEach { entry ->
+            if (keep == null || entry.absolutePath != keep.absolutePath) {
+                entry.deleteRecursively()
+            }
+        }
+    }
+
     data class Progress(
         val downloadedBytes: Long,
         val totalBytes: Long,
@@ -52,9 +85,16 @@ object AppUpdateInstaller {
 
         return try {
             val apkFile =
-                withContext(Dispatchers.IO) {
-                    downloadApk(context.applicationContext, url, onProgress)
+                downloadMutex.withLock {
+                    withContext(Dispatchers.IO) {
+                        downloadApk(context.applicationContext, url, onProgress)
+                    }
                 }
+            // The APK must still be on disk right before we hand its Uri to the installer;
+            // this is where the old shared-directory race blew up.
+            if (!apkFile.isFile || apkFile.length() == 0L) {
+                throw IOException("Downloaded update APK disappeared before install")
+            }
             withContext(Dispatchers.Main) {
                 installApk(context, apkFile)
             }
@@ -75,9 +115,8 @@ object AppUpdateInstaller {
             throw IOException("Update download URL is empty")
         }
 
-        val updateDir = File(context.cacheDir, UpdateDirectoryName)
-        updateDir.mkdirs()
-        updateDir.listFiles()?.forEach { file -> file.deleteRecursively() }
+        val updateDir = newDownloadDirectory(context)
+        pruneStaleDownloads(context, keep = updateDir)
 
         val downloadedFile = File(updateDir, DownloadFileName)
         val connection = openConnection(url)
@@ -207,7 +246,7 @@ object AppUpdateInstaller {
         context.startActivity(intent)
     }
 
-    private const val UpdateDirectoryName = "app_update"
+    internal const val UpdateDirectoryName = "app_update"
     private const val DownloadFileName = "nomatune-update.download"
     private const val ApkFileName = "nomatune-update.apk"
     private const val ApkMimeType = "application/vnd.android.package-archive"

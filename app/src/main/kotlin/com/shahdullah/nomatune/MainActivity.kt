@@ -312,6 +312,12 @@ import com.shahdullah.nomatune.constants.NavigationBarHeight
 import com.shahdullah.nomatune.constants.NavigationBarMode
 import com.shahdullah.nomatune.constants.NavigationBarModeKey
 import com.shahdullah.nomatune.constants.NavigationBarHorizontalPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
+import com.shahdullah.nomatune.ui.component.TopAppBarOverflowMenu
+import com.shahdullah.nomatune.viewmodels.MainMenuDestination
+import com.shahdullah.nomatune.viewmodels.MenuProfile
+import com.shahdullah.nomatune.viewmodels.MenuProfileState
 
 @Suppress("DEPRECATION", "ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
 @AndroidEntryPoint
@@ -857,6 +863,19 @@ class MainActivity : ComponentActivity() {
                     val allYtItems by homeViewModel.allYtItems.collectAsState()
                     val networkBannerState by networkBannerViewModel.bannerState.collectAsStateWithLifecycle()
                     val hasUnreadNews by newsViewModel.hasUnreadNews.collectAsStateWithLifecycle()
+                    // Ported from ArchiveTune: the top-app-bar overflow menu shows a profile
+                    // header, driven by the account identity HomeViewModel already observes.
+                    var overflowMenuExpanded by rememberSaveable { mutableStateOf(false) }
+                    val menuAccountName by homeViewModel.accountName.collectAsStateWithLifecycle()
+                    val menuAccountImageUrl by homeViewModel.accountImageUrl.collectAsStateWithLifecycle()
+                    val menuProfileState: MenuProfileState =
+                        remember(menuAccountName) {
+                            if (menuAccountName.isBlank()) {
+                                MenuProfileState.Empty
+                            } else {
+                                MenuProfileState.Success(MenuProfile(name = menuAccountName))
+                            }
+                        }
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val (previousTab) = rememberSaveable { mutableStateOf("home") }
                     val currentRoute = navBackStackEntry?.destination?.route
@@ -1611,66 +1630,31 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 },
                                                 actions = {
-                                                    IconButton(onClick = { navController.navigate("history") }) {
-                                                        Icon(
-                                                            painter = painterResource(R.drawable.history),
-                                                            contentDescription = stringResource(R.string.history)
-                                                        )
-                                                    }
-                                                    TooltipBox(
-                                                        positionProvider = if (hasUnreadNews)
-                                                            TooltipDefaults.rememberRichTooltipPositionProvider()
-                                                        else
-                                                            TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                                                        tooltip = {
-                                                            if (hasUnreadNews) {
-                                                                RichTooltip(
-                                                                    title = { Text(stringResource(R.string.news_tooltip_title)) },
-                                                                ) {
-                                                                    Text(stringResource(R.string.news_tooltip_body))
-                                                                }
-                                                            } else {
-                                                                PlainTooltip {
-                                                                    Text(stringResource(R.string.news))
-                                                                }
-                                                            }
-                                                        },
-                                                        state = rememberTooltipState(),
-                                                    ) {
-                                                        IconButton(onClick = { navController.navigate("news") }) {
-                                                            BadgedBox(badge = {
-                                                                if (hasUnreadNews) {
-                                                                    Badge()
-                                                                }
-                                                            }) {
-                                                                Icon(
-                                                                    painter = painterResource(R.drawable.newspaper),
-                                                                    contentDescription = stringResource(R.string.news)
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-                                                    IconButton(onClick = { navController.navigate("new_release") }) {
-                                                        Icon(
-                                                            painter = painterResource(R.drawable.new_release),
-                                                            contentDescription = stringResource(R.string.new_release_albums)
-                                                        )
-                                                    }
-                                                    IconButton(onClick = { navController.navigate("settings") }) {
-                                                        BadgedBox(badge = {
-                                                            if (
-                                                                BuildConfig.UPDATER_AVAILABLE &&
-                                                                Updater.isUpdateAvailable(latestVersionName, BuildConfig.VERSION_NAME)
-                                                            ) {
-                                                                Badge()
-                                                            }
-                                                        }) {
+                                                    // Ported from ArchiveTune: one overflow menu (⋮) instead of
+                                                    // four separate icons in the app bar.
+                                                    Box {
+                                                        IconButton(onClick = { overflowMenuExpanded = true }) {
                                                             Icon(
-                                                                painter = painterResource(R.drawable.settings),
-                                                                contentDescription = stringResource(R.string.settings),
+                                                                Icons.Default.MoreVert,
+                                                                contentDescription = stringResource(R.string.more_options),
                                                                 modifier = Modifier.size(24.dp)
                                                             )
                                                         }
+                                                        TopAppBarOverflowMenu(
+                                                            expanded = overflowMenuExpanded,
+                                                            profileState = menuProfileState,
+                                                            accountImageUrl = menuAccountImageUrl,
+                                                            hazeState = hazeState,
+                                                            pureBlack = pureBlack,
+                                                            hasUnreadNews = hasUnreadNews,
+                                                            hasUpdateAvailable = BuildConfig.UPDATER_AVAILABLE &&
+                                                                Updater.isUpdateAvailable(latestVersionName, BuildConfig.VERSION_NAME),
+                                                            onDismissRequest = { overflowMenuExpanded = false },
+                                                            onSelect = { destination ->
+                                                                overflowMenuExpanded = false
+                                                                navController.navigate(destination.route)
+                                                            },
+                                                        )
                                                     }
                                                 },
                                                 scrollBehavior = if (navBackStackEntry?.destination?.route == Screens.Library.route) null else if (shouldUseFloatingTopBar) searchBarScrollBehavior else topAppBarScrollBehavior,
