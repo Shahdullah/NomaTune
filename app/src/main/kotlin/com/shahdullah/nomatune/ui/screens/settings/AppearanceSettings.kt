@@ -127,6 +127,10 @@ import com.shahdullah.nomatune.utils.isLowRamDevice
 import com.shahdullah.nomatune.utils.rememberEnumPreference
 import com.shahdullah.nomatune.utils.rememberPreference
 import kotlin.math.roundToInt
+import com.shahdullah.nomatune.constants.NavigationBarBackgroundStyle
+import com.shahdullah.nomatune.constants.NavigationBarBackgroundStyleKey
+import com.shahdullah.nomatune.constants.NavigationBarMode
+import com.shahdullah.nomatune.constants.NavigationBarModeKey
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -187,6 +191,16 @@ fun AppearanceSettings(
             defaultValue = MiniPlayerBackgroundStyle.THEME,
         )
     val (pureBlack, onPureBlackChange) = rememberPreference(PureBlackKey, defaultValue = false)
+    val (navigationBarBackground, onNavigationBarBackgroundChange) =
+        rememberEnumPreference(
+            NavigationBarBackgroundStyleKey,
+            defaultValue = NavigationBarBackgroundStyle.THEME,
+        )
+    val (navigationBarMode, onNavigationBarModeChange) =
+        rememberEnumPreference(
+            NavigationBarModeKey,
+            defaultValue = NavigationBarMode.CONNECTED,
+        )
     val (disableBlur, onDisableBlurChange) = rememberPreference(DisableBlurKey, defaultValue = false)
     val (disableAnimations, onDisableAnimationsChange) =
         rememberPreference(
@@ -448,6 +462,58 @@ fun AppearanceSettings(
                     icon = { Icon(painterResource(R.drawable.contrast), null) },
                     checked = pureBlack,
                     onCheckedChange = onPureBlackChange,
+                )
+            }
+
+            item {
+                ListPreference(
+                    title = { Text(stringResource(R.string.navigation_bar_mode)) },
+                    icon = { Icon(painterResource(R.drawable.palette), null) },
+                    selectedValue = navigationBarMode,
+                    values =
+                        listOf(
+                            NavigationBarMode.CONNECTED,
+                            NavigationBarMode.STANDALONE,
+                            NavigationBarMode.APPLE_MUSIC,
+                        ),
+                    onValueSelected = onNavigationBarModeChange,
+                    valueText = {
+                        when (it) {
+                            NavigationBarMode.CONNECTED -> stringResource(R.string.navigation_bar_mode_connected)
+                            NavigationBarMode.STANDALONE -> stringResource(R.string.navigation_bar_mode_standalone)
+                            NavigationBarMode.APPLE_MUSIC -> stringResource(R.string.navigation_bar_mode_apple_music)
+                        }
+                    },
+                )
+            }
+
+            item {
+                ListPreference(
+                    title = { Text(stringResource(R.string.navigation_bar_background_style)) },
+                    icon = { Icon(painterResource(R.drawable.gradient), null) },
+                    selectedValue = navigationBarBackground,
+                    values =
+                        listOf(
+                            NavigationBarBackgroundStyle.THEME,
+                            NavigationBarBackgroundStyle.BLUR,
+                            NavigationBarBackgroundStyle.ACRYLIC,
+                            NavigationBarBackgroundStyle.GLASS,
+                        ),
+                    isEnabled = navigationBarMode != NavigationBarMode.APPLE_MUSIC,
+                    description = if (navigationBarMode == NavigationBarMode.APPLE_MUSIC) {
+                        stringResource(R.string.navigation_bar_background_apple_music)
+                    } else {
+                        null
+                    },
+                    onValueSelected = onNavigationBarBackgroundChange,
+                    valueText = {
+                        when (it) {
+                            NavigationBarBackgroundStyle.THEME -> stringResource(R.string.follow_theme)
+                            NavigationBarBackgroundStyle.BLUR -> stringResource(R.string.blur)
+                            NavigationBarBackgroundStyle.ACRYLIC -> stringResource(R.string.acrylic)
+                            NavigationBarBackgroundStyle.GLASS -> stringResource(R.string.glass)
+                        }
+                    },
                 )
             }
 

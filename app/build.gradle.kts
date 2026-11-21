@@ -320,6 +320,10 @@ dependencies {
     coreLibraryDesugaring(libs.desugaring)
 
     implementation(libs.timber)
+
+    implementation(libs.haze)
+    implementation(libs.haze.blur)
+    implementation(libs.haze.glass)
     testImplementation(libs.junit)
     testImplementation(libs.turbine)
     implementation(libs.translator)

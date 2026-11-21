@@ -304,6 +304,13 @@ import java.util.Locale
 import javax.inject.Inject
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.days
+import dev.chrisbanes.haze.rememberHazeState
+import com.shahdullah.nomatune.constants.NavigationBarBackgroundStyle
+import com.shahdullah.nomatune.constants.NavigationBarBackgroundStyleKey
+import com.shahdullah.nomatune.constants.NavigationBarHeight
+import com.shahdullah.nomatune.constants.NavigationBarMode
+import com.shahdullah.nomatune.constants.NavigationBarModeKey
+import com.shahdullah.nomatune.constants.NavigationBarHorizontalPadding
 
 @Suppress("DEPRECATION", "ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
 @AndroidEntryPoint
@@ -959,7 +966,16 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val floatingBarsBottomPadding = FloatingToolbarBottomPadding
-                    val navVisibleHeight = FloatingToolbarHeight
+                    val navVisibleHeight = NavigationBarHeight
+                    val hazeState = rememberHazeState()
+                    val navigationBarBackgroundStyle by rememberEnumPreference(
+                        NavigationBarBackgroundStyleKey,
+                        defaultValue = NavigationBarBackgroundStyle.THEME,
+                    )
+                    val navigationBarMode by rememberEnumPreference(
+                        NavigationBarModeKey,
+                        defaultValue = NavigationBarMode.CONNECTED,
+                    )
 
                     val bottomNavigationBarHeight by animateDpAsState(
                         targetValue = if (shouldShowNavigationBar && !useRail) navVisibleHeight else 0.dp,
@@ -1863,87 +1879,17 @@ class MainActivity : ComponentActivity() {
                                             FloatingNavigationToolbar(
                                                 items = navigationItems,
                                                 pureBlack = pureBlack,
+                                                backgroundStyle = navigationBarBackgroundStyle,
+                                                hazeState = hazeState,
+                                                navigationBarMode = navigationBarMode,
+                                                miniPlayerProximityProvider = { 0f },
                                                 modifier = Modifier
                                                     .align(Alignment.BottomCenter)
                                                     .padding(
-                                                        start = FloatingToolbarHorizontalPadding,
-                                                        end = FloatingToolbarHorizontalPadding,
+                                                        start = NavigationBarHorizontalPadding,
+                                                        end = NavigationBarHorizontalPadding,
                                                         bottom = bottomInset + floatingBarsBottomPadding,
-                                                    )
-                                                    .height(navVisibleHeight),
-                                                onFabClick = if (shouldShowLibraryCreatePlaylistButton) {
-                                                    { showCreatePlaylistDialog = true }
-                                                } else null,
-                                                fabIconRes = if (shouldShowLibraryCreatePlaylistButton) R.drawable.add else null,
-                                                fabContentDescription = if (shouldShowLibraryCreatePlaylistButton) {
-                                                    stringResource(R.string.create_playlist)
-                                                } else "",
-                                                onShuffleClick = if (shouldShowHomeShuffleButton) {
-                                                    {
-                                                        val useLocalSource = when {
-                                                            allLocalItems.isNotEmpty() && allYtItems.isNotEmpty() -> Random.nextFloat() < 0.5f
-                                                            allLocalItems.isNotEmpty() -> true
-                                                            else -> false
-                                                        }
-
-                                                        coroutineScope.launch(Dispatchers.Main) {
-                                                            if (useLocalSource) {
-                                                                when (val luckyItem = allLocalItems.random()) {
-                                                                    is Song -> {
-                                                                        playerConnection?.playQueue(
-                                                                            YouTubeQueue.radio(luckyItem.toMediaMetadata())
-                                                                        )
-                                                                    }
-
-                                                                    is Album -> {
-                                                                        val albumWithSongs = withContext(Dispatchers.IO) {
-                                                                            database.albumWithSongs(luckyItem.id).first()
-                                                                        }
-
-                                                                        albumWithSongs?.let {
-                                                                            playerConnection?.playQueue(LocalAlbumRadio(it))
-                                                                        }
-                                                                    }
-
-                                                                    is Artist -> Unit
-                                                                    is Playlist -> Unit
-                                                                }
-                                                            } else {
-                                                                when (val luckyItem = allYtItems.random()) {
-                                                                    is SongItem -> {
-                                                                        playerConnection?.playQueue(
-                                                                            YouTubeQueue.radio(luckyItem.toMediaMetadata())
-                                                                        )
-                                                                    }
-
-                                                                    is AlbumItem -> {
-                                                                        playerConnection?.playQueue(
-                                                                            YouTubeAlbumRadio(luckyItem.playlistId)
-                                                                        )
-                                                                    }
-
-                                                                    is ArtistItem -> {
-                                                                        luckyItem.radioEndpoint?.let {
-                                                                            playerConnection?.playQueue(YouTubeQueue(it))
-                                                                        }
-                                                                    }
-
-                                                                    is PlaylistItem -> {
-                                                                        luckyItem.playEndpoint?.let {
-                                                                            playerConnection?.playQueue(YouTubeQueue.playlist(it))
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                } else null,
-                                                shuffleIconRes = if (shouldShowHomeShuffleButton) R.drawable.shuffle else null,
-                                                shuffleContentDescription = if (shouldShowHomeShuffleButton) stringResource(R.string.shuffle) else "",
-                                                onMusicRecognitionClick = if (shouldShowHomeShuffleButton) {
-                                                    { navController.navigate(MusicRecognitionRoute) }
-                                                } else null,
-                                                musicRecognitionContentDescription = if (shouldShowHomeShuffleButton) stringResource(R.string.music_recognition) else "",
+                                                    ),
                                                 isSelected = { screen ->
                                                     navBackStackEntry?.destination?.hierarchy?.any { it.route == screen.route } ==
                                                         true

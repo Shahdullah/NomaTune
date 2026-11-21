@@ -576,4 +576,13 @@
     <string name="about_content_desc_discord">Discord</string>
     <string name="about_content_desc_telegram">Telegram</string>
     <string name="about_content_desc_donate">Donate</string>
+    <string name="navigation_bar_background_style">Navigation bar background style</string>
+    <string name="navigation_bar_mode">Navigation bar mode</string>
+    <string name="navigation_bar_mode_connected">Connected</string>
+    <string name="navigation_bar_mode_standalone">Standalone</string>
+    <string name="navigation_bar_mode_apple_music" translatable="false">Apple Music</string>
+    <string name="navigation_bar_background_apple_music">Apple Music mode uses its own glass background</string>
+    <string name="acrylic">Acrylic</string>
+    <string name="glass">Glass</string>
+    <string name="follow_theme">Follow theme</string>
 </resources>

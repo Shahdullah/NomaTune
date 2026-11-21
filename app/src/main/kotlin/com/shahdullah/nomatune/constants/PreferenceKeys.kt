@@ -635,6 +635,22 @@ enum class MiniPlayerBackgroundStyle {
 }
 
 // Keys for customized background
+val NavigationBarBackgroundStyleKey = stringPreferencesKey("navigationBarBackgroundStyle")
+val NavigationBarModeKey = stringPreferencesKey("navigationBarMode")
+
+enum class NavigationBarBackgroundStyle {
+    THEME,
+    BLUR,
+    ACRYLIC,
+    GLASS,
+}
+
+enum class NavigationBarMode {
+    CONNECTED,
+    STANDALONE,
+    APPLE_MUSIC,
+}
+
 val PlayerCustomImageUriKey = stringPreferencesKey("playerCustomImageUri")
 val PlayerCustomBlurKey = floatPreferencesKey("playerCustomBlur")
 val PlayerCustomContrastKey = floatPreferencesKey("playerCustomContrast")
