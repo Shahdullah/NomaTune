@@ -327,6 +327,8 @@ import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 
 @Suppress("DEPRECATION", "ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
 @AndroidEntryPoint
@@ -983,18 +985,6 @@ class MainActivity : ComponentActivity() {
                     val shouldShowHomeShuffleButton =
                         currentRoute == Screens.Home.route &&
                             (allLocalItems.isNotEmpty() || allYtItems.isNotEmpty())
-                    // Ported from ArchiveTune: the quick-actions FAB hides while the player
-                    // sheet is expanded, and collapses its menu when it disappears.
-                    var homeOverflowMenuExpanded by rememberSaveable { mutableStateOf(false) }
-                    val showHomeOverflowFab =
-                        shouldShowHomeShuffleButton &&
-                            !useRail &&
-                            (playerBottomSheetState.isDismissed || playerBottomSheetState.isCollapsed)
-                    LaunchedEffect(showHomeOverflowFab) {
-                        if (!showHomeOverflowFab) {
-                            homeOverflowMenuExpanded = false
-                        }
-                    }
                     val shouldShowLibraryCreatePlaylistButton =
                         currentRoute == Screens.Library.route
 
@@ -1044,6 +1034,20 @@ class MainActivity : ComponentActivity() {
                                     MiniPlayerHeight,
                             expandedBound = maxHeight,
                         )
+
+                    // Ported from ArchiveTune: the quick-actions FAB hides while the player
+                    // sheet is expanded, and collapses its menu when it disappears.
+                    // Declared after playerBottomSheetState so it can be referenced.
+                    var homeOverflowMenuExpanded by rememberSaveable { mutableStateOf(false) }
+                    val showHomeOverflowFab =
+                        shouldShowHomeShuffleButton &&
+                            !useRail &&
+                            (playerBottomSheetState.isDismissed || playerBottomSheetState.isCollapsed)
+                    LaunchedEffect(showHomeOverflowFab) {
+                        if (!showHomeOverflowFab) {
+                            homeOverflowMenuExpanded = false
+                        }
+                    }
 
                     val playerBackground by rememberEnumPreference(
                         key = PlayerBackgroundStyleKey,
