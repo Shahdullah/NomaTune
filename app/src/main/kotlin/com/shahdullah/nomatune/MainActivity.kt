@@ -304,6 +304,7 @@ import java.util.Locale
 import javax.inject.Inject
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.days
+import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import com.shahdullah.nomatune.constants.NavigationBarBackgroundStyle
 import com.shahdullah.nomatune.constants.NavigationBarBackgroundStyleKey
@@ -968,6 +969,13 @@ class MainActivity : ComponentActivity() {
                     val floatingBarsBottomPadding = FloatingToolbarBottomPadding
                     val navVisibleHeight = NavigationBarHeight
                     val hazeState = rememberHazeState()
+                    // ArchiveTune wraps the scrollable content in Modifier.hazeSource(...) so the
+                    // floating bars actually have something to sample. Without it every
+                    // background style (glass/haze) has no input and renders as a flat tint,
+                    // which is why Connected and Standalone looked identical and Apple Music
+                    // looked invisible.
+                    val floatingBarsHazeSourceModifier =
+                        remember(hazeState) { Modifier.hazeSource(hazeState) }
                     val navigationBarBackgroundStyle by rememberEnumPreference(
                         NavigationBarBackgroundStyleKey,
                         defaultValue = NavigationBarBackgroundStyle.THEME,
@@ -1804,6 +1812,9 @@ class MainActivity : ComponentActivity() {
                                                 modifier =
                                                     Modifier
                                                         .fillMaxSize()
+                                                        // ArchiveTune registers the search overlay as a haze source
+                                                        // too, so the bars have content to sample while searching.
+                                                        .hazeSource(hazeState, zIndex = 1f)
                                                         .padding(bottom = if(!playerBottomSheetState.isDismissed) MiniPlayerHeight else 0.dp)
                                                         .navigationBarsPadding(),
                                             ) { searchSource ->
@@ -2024,6 +2035,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     modifier = Modifier
+                                        .then(floatingBarsHazeSourceModifier)
                                         .then(
                                             if (isTvDevice) Modifier
                                                 .focusRequester(contentAreaFocusRequester)

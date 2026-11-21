@@ -52,7 +52,6 @@ import com.shahdullah.nomatune.constants.DisableBlurKey
 import com.shahdullah.nomatune.constants.QuickPicksDisplayMode
 import com.shahdullah.nomatune.constants.QuickPicksDisplayModeKey
 import com.shahdullah.nomatune.constants.ShowHomeCategoryChipsKey
-import com.shahdullah.nomatune.ui.component.ChipsRow
 import com.shahdullah.nomatune.ui.component.ExpressivePullToRefreshBox
 import com.shahdullah.nomatune.ui.component.LocalBottomSheetPageState
 import com.shahdullah.nomatune.ui.component.LocalMenuState
@@ -278,13 +277,18 @@ fun HomeScreen(
                     contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues()
                 ) {
                     if (showHomeCategoryChips) {
-                        item {
-                            ChipsRow(
-                                chips = homePage?.chips.orEmpty().map { it to it.title },
-                                currentValue = selectedChip,
-                                onValueUpdate = {
-                                    viewModel.toggleChip(it)
-                                }
+                        // ArchiveTune renders these as ToggleButton pills in a horizontal scroller
+                        // (HomeCategoryChips), not the older ChipsRow. That is the difference in
+                        // the shape/spacing of the row under the app title.
+                        item(
+                            key = "home_category_chips",
+                            contentType = "category_chips",
+                        ) {
+                            HomeCategoryChips(
+                                chips = homePage?.chips.orEmpty(),
+                                selectedChip = selectedChip,
+                                onChipSelected = { viewModel.toggleChip(it) },
+                                modifier = Modifier.animateItem(),
                             )
                         }
                     }
