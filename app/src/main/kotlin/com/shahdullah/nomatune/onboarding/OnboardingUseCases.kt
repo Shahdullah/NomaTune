@@ -149,7 +149,7 @@ class BuildOnboardingUiStateUseCase
                         titleResId = R.string.onboarding_community_discord_title,
                         descriptionResId = R.string.onboarding_community_telegram_desc,
                         iconResId = R.drawable.discord,
-                        url = "https://discord.gg/Hn8fBBDNN",
+                        url = "https://discord.gg/6yqZY6xj",
                     ),
                     OnboardingCommunityActionUiModel(
                         id = "donate",
