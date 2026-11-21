@@ -22,7 +22,6 @@ import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
-import kotlinx.coroutines.sync.withLock
 import java.util.zip.ZipFile
 
 /**
@@ -47,13 +46,20 @@ object UpdateApkFetcher {
         // one shared cache dir, so neither may clear the other's work. The directory is
         // created and pruned *inside* the lock, otherwise a waiter could wipe the
         // directory of the download that currently holds it.
-        return runCatching {
-            AppUpdateInstaller.downloadMutex.withLock {
-                val updateDir = AppUpdateInstaller.newDownloadDirectory(context)
-                AppUpdateInstaller.pruneStaleDownloads(context, keep = updateDir)
-                downloadAndLaunch(context, safeUrl, updateDir, File(updateDir, APK_FILE_NAME), timeoutMs)
-            }
-        }.getOrDefault(false)
+        // This entry point is called from a BroadcastReceiver's goAsync() block on a
+        // background thread, not from a coroutine, so it cannot suspend on the mutex.
+        // Use tryLock so a download already in progress is not clobbered; report failure
+        // rather than silently deleting its directory.
+        if (!AppUpdateInstaller.downloadMutex.tryLock()) {
+            return false
+        }
+        return try {
+            val updateDir = AppUpdateInstaller.newDownloadDirectory(context)
+            AppUpdateInstaller.pruneStaleDownloads(context, keep = updateDir)
+            downloadAndLaunch(context, safeUrl, updateDir, File(updateDir, APK_FILE_NAME), timeoutMs)
+        } finally {
+            AppUpdateInstaller.downloadMutex.unlock()
+        }
     }
 
     private fun downloadAndLaunch(
