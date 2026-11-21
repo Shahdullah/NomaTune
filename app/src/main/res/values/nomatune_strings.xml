@@ -602,4 +602,6 @@
 <string name="stats_top_songs">Top songs</string>
 <string name="stats_year_picker_message">Pick a year to open its recap.</string>
     <string name="stats_unique_albums">Unique Albums</string>
+    <string name="home_fab_menu_expanded">Quick actions shown</string>
+    <string name="home_fab_menu_collapsed">Quick actions hidden</string>
 </resources>

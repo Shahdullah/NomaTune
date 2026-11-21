@@ -318,6 +318,15 @@ import com.shahdullah.nomatune.ui.component.TopAppBarOverflowMenu
 import com.shahdullah.nomatune.viewmodels.MainMenuDestination
 import com.shahdullah.nomatune.viewmodels.MenuProfile
 import com.shahdullah.nomatune.viewmodels.MenuProfileState
+import androidx.compose.material3.FloatingActionButtonMenu
+import androidx.compose.material3.FloatingActionButtonMenuItem
+import androidx.compose.material3.ToggleFloatingActionButton
+import androidx.compose.material3.ToggleFloatingActionButtonDefaults
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.traversalIndex
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 
 @Suppress("DEPRECATION", "ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
 @AndroidEntryPoint
@@ -974,6 +983,18 @@ class MainActivity : ComponentActivity() {
                     val shouldShowHomeShuffleButton =
                         currentRoute == Screens.Home.route &&
                             (allLocalItems.isNotEmpty() || allYtItems.isNotEmpty())
+                    // Ported from ArchiveTune: the quick-actions FAB hides while the player
+                    // sheet is expanded, and collapses its menu when it disappears.
+                    var homeOverflowMenuExpanded by rememberSaveable { mutableStateOf(false) }
+                    val showHomeOverflowFab =
+                        shouldShowHomeShuffleButton &&
+                            !useRail &&
+                            (playerBottomSheetState.isDismissed || playerBottomSheetState.isCollapsed)
+                    LaunchedEffect(showHomeOverflowFab) {
+                        if (!showHomeOverflowFab) {
+                            homeOverflowMenuExpanded = false
+                        }
+                    }
                     val shouldShowLibraryCreatePlaylistButton =
                         currentRoute == Screens.Library.route
 
@@ -1941,6 +1962,118 @@ class MainActivity : ComponentActivity() {
                                                     openSearch()
                                                 },
                                             )
+
+                                            // Ported from ArchiveTune: the home quick-actions FAB.
+                                            // shouldShowHomeShuffleButton was computed but unused, which is
+                                            // why the shuffle/recognition/together button was missing.
+                                            val homeOverflowFabBottomPadding =
+                                                bottomInset +
+                                                    floatingBarsBottomPadding +
+                                                    navVisibleHeight +
+                                                    HomeOverflowFabSpacing +
+                                                    if (playerBottomSheetState.isCollapsed) {
+                                                        MiniPlayerHeight + MiniPlayerBottomSpacing
+                                                    } else {
+                                                        0.dp
+                                                    }
+                                            HomeOverflowFabVisibility(
+                                                visible = showHomeOverflowFab,
+                                                modifier =
+                                                    Modifier
+                                                        .align(Alignment.BottomEnd)
+                                                        .padding(
+                                                            end = NavigationBarHorizontalPadding,
+                                                            bottom = homeOverflowFabBottomPadding,
+                                                        ),
+                                            ) {
+                                                // Use the composition locals, not the Activity's injected
+                                                // fields: HomeOverflowFab lives inside the content lambda.
+                                                val fabDatabase = LocalDatabase.current
+                                                val fabPlayerConnection = LocalPlayerConnection.current
+                                                HomeOverflowFab(
+                                                    expanded = homeOverflowMenuExpanded,
+                                                    onExpandedChange = { homeOverflowMenuExpanded = it },
+                                                    onShuffleClick = {
+                                                        val useLocalSource =
+                                                            when {
+                                                                allLocalItems.isNotEmpty() && allYtItems.isNotEmpty() -> {
+                                                                    Random.nextFloat() < 0.5f
+                                                                }
+
+                                                                allLocalItems.isNotEmpty() -> {
+                                                                    true
+                                                                }
+
+                                                                else -> {
+                                                                    false
+                                                                }
+                                                            }
+
+                                                        coroutineScope.launch(Dispatchers.Main) {
+                                                            if (useLocalSource) {
+                                                                when (val luckyItem = allLocalItems.random()) {
+                                                                    is Song -> {
+                                                                        fabPlayerConnection?.playQueue(
+                                                                            if (luckyItem.song.isLocal) {
+                                                                                ListQueue(items = listOf(luckyItem.toMediaItem()))
+                                                                            } else {
+                                                                                YouTubeQueue.radio(luckyItem.toMediaMetadata())
+                                                                            },
+                                                                        )
+                                                                    }
+
+                                                                    is Album -> {
+                                                                        val albumWithSongs =
+                                                                            withContext(Dispatchers.IO) {
+                                                                                fabDatabase.albumWithSongs(luckyItem.id).first()
+                                                                            }
+
+                                                                        albumWithSongs?.let {
+                                                                            fabPlayerConnection?.playQueue(LocalAlbumRadio(it))
+                                                                        }
+                                                                    }
+
+                                                                    else -> Unit
+                                                                }
+                                                            } else {
+                                                                when (val luckyItem = allYtItems.random()) {
+                                                                    is SongItem -> {
+                                                                        fabPlayerConnection?.playQueue(
+                                                                            YouTubeQueue.radio(luckyItem.toMediaMetadata()),
+                                                                        )
+                                                                    }
+
+                                                                    is AlbumItem -> {
+                                                                        fabPlayerConnection?.playQueue(
+                                                                            YouTubeAlbumRadio(luckyItem.playlistId),
+                                                                        )
+                                                                    }
+
+                                                                    is ArtistItem -> {
+                                                                        luckyItem.radioEndpoint?.let {
+                                                                            fabPlayerConnection?.playQueue(YouTubeQueue(it))
+                                                                        }
+                                                                    }
+
+                                                                    is PlaylistItem -> {
+                                                                        luckyItem.playEndpoint?.let {
+                                                                            fabPlayerConnection?.playQueue(YouTubeQueue.playlist(it))
+                                                                        }
+                                                                    }
+
+                                                                    else -> Unit
+                                                                }
+                                                            }
+                                                        }
+                                                    },
+                                                    onMusicRecognitionClick = {
+                                                        navController.navigate(MusicRecognitionRoute)
+                                                    },
+                                                    onMusicTogetherClick = {
+                                                        navController.navigate("settings/music_together")
+                                                    },
+                                                )
+                                            }
                                         }
                                     }
                                 },
@@ -2392,4 +2525,112 @@ private fun Context.isTvDevice(): Boolean {
     return isTelevisionUiMode ||
         packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
         packageManager.hasSystemFeature(PackageManager.FEATURE_TELEVISION)
+}
+
+/*
+ * Ported from ArchiveTune's MainActivity.kt (HomeOverflowFab + HomeOverflowFabVisibility).
+ * The composable bodies are unchanged. The shuffle action's PodcastItem/EpisodeItem
+ * branches are omitted because NomaTune has no podcast browse route.
+ */
+
+private val HomeOverflowFabSpacing = 12.dp
+private const val HomeOverflowFabIconRotation = 90f
+
+@Composable
+private fun HomeOverflowFabVisibility(
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val motionScheme = MaterialTheme.motionScheme
+
+    AnimatedVisibility(
+        visible = visible,
+        modifier = modifier,
+        enter =
+            fadeIn(animationSpec = motionScheme.fastEffectsSpec()) +
+                scaleIn(
+                    initialScale = 0.8f,
+                    animationSpec = motionScheme.defaultSpatialSpec(),
+                ),
+        exit =
+            fadeOut(animationSpec = motionScheme.fastEffectsSpec()) +
+                scaleOut(
+                    targetScale = 0.8f,
+                    animationSpec = motionScheme.fastSpatialSpec(),
+                ),
+        label = "homeOverflowFabVisibility",
+    ) {
+        content()
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun HomeOverflowFab(
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onShuffleClick: () -> Unit,
+    onMusicRecognitionClick: () -> Unit,
+    onMusicTogetherClick: () -> Unit,
+) {
+    BackHandler(expanded) { onExpandedChange(false) }
+    val moreLabel = stringResource(R.string.more)
+    val stateLabel =
+        stringResource(if (expanded) R.string.home_fab_menu_expanded else R.string.home_fab_menu_collapsed)
+
+    FloatingActionButtonMenu(
+        expanded = expanded,
+        button = {
+            ToggleFloatingActionButton(
+                checked = expanded,
+                onCheckedChange = onExpandedChange,
+                modifier =
+                    Modifier.semantics {
+                        traversalIndex = -1f
+                        stateDescription = stateLabel
+                        contentDescription = moreLabel
+                    },
+            ) {
+                val icon by remember {
+                    derivedStateOf { if (checkedProgress > 0.5f) R.drawable.close else R.drawable.more_horiz }
+                }
+                Icon(
+                    painter = painterResource(icon),
+                    contentDescription = null,
+                    modifier =
+                        with(ToggleFloatingActionButtonDefaults) {
+                            Modifier
+                                .animateIcon({ checkedProgress })
+                                .graphicsLayer { rotationZ = checkedProgress * HomeOverflowFabIconRotation }
+                        },
+                )
+            }
+        },
+    ) {
+        FloatingActionButtonMenuItem(
+            onClick = {
+                onExpandedChange(false)
+                onMusicRecognitionClick()
+            },
+            icon = { Icon(painterResource(R.drawable.mic), contentDescription = null) },
+            text = { Text(stringResource(R.string.music_recognition)) },
+        )
+        FloatingActionButtonMenuItem(
+            onClick = {
+                onExpandedChange(false)
+                onMusicTogetherClick()
+            },
+            icon = { Icon(painterResource(R.drawable.multi_user), contentDescription = null) },
+            text = { Text(stringResource(R.string.music_together)) },
+        )
+        FloatingActionButtonMenuItem(
+            onClick = {
+                onExpandedChange(false)
+                onShuffleClick()
+            },
+            icon = { Icon(painterResource(R.drawable.shuffle), contentDescription = null) },
+            text = { Text(stringResource(R.string.shuffle)) },
+        )
+    }
 }
