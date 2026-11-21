@@ -1537,7 +1537,12 @@ fun ItemThumbnail(
     isSelected: Boolean = false,
     shouldLoadImage: Boolean = true,
     @DrawableRes placeholderIconRes: Int? = null,
-    thumbnailRatio: Float = 1f
+    thumbnailRatio: Float = 1f,
+    // Ported from ArchiveTune: lets callers cap the decoded bitmap so large lists do not
+    // decode full-size artwork. Optional, so every existing call site is unaffected.
+    maxSizePx: Int? = null,
+    sizeBuckets: List<Int>? = null,
+    sourceAspectRatio: Float? = null,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -1552,8 +1557,17 @@ fun ItemThumbnail(
         val (cropThumbnailToSquare, _) = rememberPreference(CropThumbnailToSquareKey, false)
         val isYouTubeThumb = thumbnailUrl?.contains("ytimg.com", ignoreCase = true) == true
         val shouldApplySquareCrop = cropThumbnailToSquare && isYouTubeThumb && kotlin.math.abs(thumbnailRatio - 1f) < 0.001f
-        val widthPx = if (maxWidth == Dp.Infinity) null else with(density) { maxWidth.roundToPx().coerceAtLeast(1) }
-        val heightPx = if (maxHeight == Dp.Infinity) null else with(density) { maxHeight.roundToPx().coerceAtLeast(1) }
+        val rawWidthPx = if (maxWidth == Dp.Infinity) null else with(density) { maxWidth.roundToPx().coerceAtLeast(1) }
+        val rawHeightPx = if (maxHeight == Dp.Infinity) null else with(density) { maxHeight.roundToPx().coerceAtLeast(1) }
+        // maxSizePx caps the decoded bitmap; sizeBuckets optionally snaps the request up to a
+        // precomputed bucket so Coil caches fewer distinct sizes.
+        fun resolvePx(raw: Int?): Int? {
+            if (raw == null) return null
+            val bucketed = sizeBuckets?.firstOrNull { it >= raw } ?: raw
+            return maxSizePx?.let { minOf(bucketed, it) } ?: bucketed
+        }
+        val widthPx = resolvePx(rawWidthPx)
+        val heightPx = resolvePx(rawHeightPx)
 
         if (albumIndex == null) {
             if (placeholderIconRes != null) {

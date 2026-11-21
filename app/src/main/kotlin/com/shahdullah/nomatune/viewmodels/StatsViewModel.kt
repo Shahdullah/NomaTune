@@ -152,7 +152,7 @@ class StatsViewModel
                             fromTimeStamp = statToPeriod(selection, t),
                             limit = -1,
                             toTimeStamp = toTimestamp(selection, t),
-                        ).map { songs -> songs.filter { song -> song.artists.none { it.blockedAt != null } } }
+                        ) // NomaTune has no blocked-artist feature, so no filter here.
                 }
 
         private val mostPlayedArtists =
@@ -163,9 +163,7 @@ class StatsViewModel
                             statToPeriod(selection, t),
                             limit = -1,
                             toTimeStamp = toTimestamp(selection, t),
-                        ).map { artists ->
-                            artists.filter { it.artist.blockedAt == null && it.artist.isYouTubeArtist }
-                        }
+                        ).map { artists -> artists.filter { it.artist.isYouTubeArtist } }
                 }
 
         private val mostPlayedAlbums =
@@ -176,7 +174,7 @@ class StatsViewModel
                             statToPeriod(selection, t),
                             limit = -1,
                             toTimeStamp = toTimestamp(selection, t),
-                        ).map { albums -> albums.filter { album -> album.artists.none { it.blockedAt != null } } }
+                        )
                 }
 
         private val listeningByHour =
