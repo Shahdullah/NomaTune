@@ -69,7 +69,7 @@ object UpdateApkFetcher {
         target: File,
         timeoutMs: Int,
     ): Boolean {
-        runCatching {
+        return runCatching {
             val connection =
                 (URL(safeUrl).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
