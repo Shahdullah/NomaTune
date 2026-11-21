@@ -778,7 +778,7 @@ async function prepare(requestJson) {
 async function resolveForRequest(youtube, request, authenticated) {
   const clients = authenticated
     ? [AUTHENTICATED_CLIENT]
-    : [ANONYMOUS_CLIENT, ANONYMOUS_DIRECT_CLIENT];
+    : [ANONYMOUS_CLIENT, ANONYMOUS_DIRECT_CLIENT, "ANDROID_VR", "IOS"];
   try {
     return await resolveWithClients(youtube, request, clients);
   } catch (error) {
