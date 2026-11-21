@@ -756,6 +756,12 @@ function stripPoTokens(request) {
   return { ...request, videoPoToken: undefined, sessionPoToken: undefined };
 }
 
+// Anonymous playback never needs a PoToken for the native clients, and YouTube answers
+// "Please sign in" when a stale/rejected token rides along with the web clients.
+function anonymousWithoutTokens(request) {
+  return { ...stripPoTokens(request), visitorData: undefined };
+}
+
 function parseRequest(requestJson) {
   const request = JSON.parse(requestJson);
   if (!/^[A-Za-z0-9_-]{6,32}$/.test(String(request.mediaId || ""))) {
@@ -778,7 +784,7 @@ async function prepare(requestJson) {
 async function resolveForRequest(youtube, request, authenticated) {
   const clients = authenticated
     ? [AUTHENTICATED_CLIENT]
-    : [ANONYMOUS_CLIENT, ANONYMOUS_DIRECT_CLIENT, "ANDROID_VR", "IOS"];
+    : [ANONYMOUS_CLIENT, ANONYMOUS_DIRECT_CLIENT, "ANDROID_VR", "IOS", "ANDROID"];
   try {
     return await resolveWithClients(youtube, request, clients);
   } catch (error) {
@@ -797,7 +803,12 @@ async function resolvePrepared(requestJson) {
     // Once an anonymous PoToken has been rejected, keep resolving anonymously
     // without tokens instead of replaying the rejected token on every attempt.
     const poTokensSuppressed = !authenticated && suppressedPoTokenIdentities.has(identity);
-    const effectiveRequest = poTokensSuppressed ? stripPoTokens(request) : request;
+    // Anonymous playback is resolved without any PoToken or cached visitor identity:
+    // the native clients in the rotation do not need either, and a stale token/visitor
+    // is exactly what makes every client answer "Please sign in".
+    const effectiveRequest = authenticated
+      ? request
+      : (poTokensSuppressed ? stripPoTokens(request) : anonymousWithoutTokens(request));
     const effectiveIdentity = createSessionIdentity(effectiveRequest);
     if (!session || effectiveIdentity !== sessionIdentity) {
       await getSession(effectiveRequest);
