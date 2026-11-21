@@ -27,7 +27,10 @@ const val CONTENT_TYPE_PLAYLIST = 5
 val FloatingToolbarHeight = 72.dp
 val FloatingToolbarHorizontalPadding = 16.dp
 val FloatingToolbarBottomPadding = 12.dp
-val NavigationBarHeight = FloatingToolbarHeight
+// Dock metrics copied from ArchiveTune so the bar has the same proportions it does there.
+// NavigationBarHeight used to alias FloatingToolbarHeight (72dp); ArchiveTune uses 78dp.
+val NavigationBarHeight = 78.dp
+val NavigationBarBottomPadding = 10.dp
 val NavigationBarMaxWidth = 420.dp
 val NavigationBarHorizontalPadding = 12.dp
 val FloatingBarStandaloneCornerRadius = 32.dp

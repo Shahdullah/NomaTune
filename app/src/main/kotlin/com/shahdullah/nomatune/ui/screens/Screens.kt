@@ -53,7 +53,10 @@ sealed class Screens(
     )
 
     companion object {
-        val MainScreens = listOf(Home, Search, MoodAndGenres, Library)
+        // Keep this identical to ArchiveTune: the dock is laid out with EqualWeight and a
+        // fixed item width budget, so an extra entry squeezes every item and pushes the last
+        // one (Search) out of the bar. ArchiveTune lists exactly Home, Search, Library.
+        val MainScreens = listOf(Home, Search, Library)
         val TvMainScreens = listOf(Home, Search, Library)
     }
 }

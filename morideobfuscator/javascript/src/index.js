@@ -717,26 +717,11 @@ function parseRequest(requestJson) {
 async function prepare(requestJson) {
   try {
     const request = parseRequest(requestJson);
-    // Anonymous sessions must be created without any stale visitor identity or PoToken,
-    // otherwise the youtubei.js session itself is bound to that stale identity and every
-    // later request inherits it.
-    const authenticated = Boolean(normalizedString(request.cookie));
-    await getSession(authenticated ? request : anonymousWithoutIdentity(request));
+    await getSession(request);
     return JSON.stringify({ ok: true });
   } catch (error) {
     return JSON.stringify({ ok: false, error: normalizedFailure(error) });
   }
-}
-
-function stripPoTokens(request) {
-  return { ...request, videoPoToken: undefined, sessionPoToken: undefined };
-}
-
-// Anonymous playback must not carry identity minted for a different session. A stale
-// visitorData or PoToken makes YouTube answer "Please sign in" for every client even
-// though nothing in the request is authenticated.
-function anonymousWithoutIdentity(request) {
-  return { ...stripPoTokens(request), visitorData: undefined, dataSyncId: undefined };
 }
 
 // Clients tried only when the primary client returns no direct audio format (for example
@@ -761,9 +746,7 @@ async function resolveWithFormatFallbacks(youtube, request) {
 async function resolvePrepared(requestJson) {
   try {
     const request = parseRequest(requestJson);
-    const requestAuthenticated = Boolean(normalizedString(request.cookie));
-    const sessionRequest = requestAuthenticated ? request : anonymousWithoutIdentity(request);
-    const identity = createSessionIdentity(sessionRequest);
+    const identity = createSessionIdentity(request);
     if (!session || identity !== sessionIdentity) {
       const error = new Error("youtubei.js session was not prepared");
       error.kind = "INTERNAL";
@@ -771,16 +754,15 @@ async function resolvePrepared(requestJson) {
     }
     const authenticated = Boolean(normalizedString(request.cookie));
     const client = authenticated ? AUTHENTICATED_CLIENT : ANONYMOUS_CLIENT;
-    const effectiveRequest = authenticated ? request : anonymousWithoutIdentity(request);
     let value;
     try {
-      value = await resolveWithClient(session, effectiveRequest, client);
+      value = await resolveWithClient(session, request, client);
     } catch (error) {
       const kind = failureKind(error);
       if (kind === "NO_FORMAT" && !authenticated) {
-        value = await resolveWithFormatFallbacks(session, effectiveRequest);
+        value = await resolveWithFormatFallbacks(session, request);
       } else if (kind === "UNAVAILABLE" && error.videoInfo) {
-        value = await resolveCatalogReplacement(session, effectiveRequest, error.videoInfo);
+        value = await resolveCatalogReplacement(session, request, error.videoInfo);
         if (!value) throw error;
       } else {
         throw error;
