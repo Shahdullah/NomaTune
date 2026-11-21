@@ -56,7 +56,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.util.lerp
 import com.shahdullah.nomatune.constants.FloatingBarJunctionCornerRadius
 import com.shahdullah.nomatune.constants.FloatingBarOuterCornerRadius
 import com.shahdullah.nomatune.constants.FloatingBarStandaloneCornerRadius
