@@ -62,6 +62,9 @@ import java.time.ZoneOffset
 import java.util.Date
 import java.util.concurrent.Executor
 import kotlin.coroutines.resume
+import com.shahdullah.nomatune.recap.RecapDao
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.Flow
 
 private const val TAG = "MusicDatabase"
 private const val CURRENT_VERSION = 31
@@ -69,6 +72,23 @@ private const val CURRENT_VERSION = 31
 class MusicDatabase(
     private val delegate: InternalDatabase,
 ) : DatabaseDao by delegate.dao {
+    // Ported from ArchiveTune for Year in Music. RecapDao is query-only (no @Entity),
+    // so adding it requires no schema change or migration.
+    val recapDao: RecapDao
+        get() = delegate.recapDao
+
+    /** Emits whenever the tables the recap reads are invalidated. */
+    fun recapChanges(): Flow<Unit> =
+        delegate.invalidationTracker
+            .createFlow(
+                "event",
+                "song",
+                "artist",
+                "album",
+                "song_artist_map",
+                "song_album_map",
+                "album_artist_map",
+            ).map { }
     val openHelper: SupportSQLiteOpenHelper
         get() = delegate.openHelper
 
@@ -166,6 +186,7 @@ class MusicDatabase(
 @TypeConverters(Converters::class)
 abstract class InternalDatabase : RoomDatabase() {
     abstract val dao: DatabaseDao
+    abstract val recapDao: RecapDao
 
     companion object {
         const val DB_NAME = "song.db"
