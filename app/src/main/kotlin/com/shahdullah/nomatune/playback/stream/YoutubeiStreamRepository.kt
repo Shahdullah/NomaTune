@@ -369,6 +369,7 @@ class YoutubeiStreamRepository
         private fun PlaybackAuthState.withoutResidualPlaybackState(): PlaybackAuthState =
             copy(
                 cookie = null,
+                visitorData = null,
                 dataSyncId = null,
                 poToken = null,
                 poTokenGvs = null,
