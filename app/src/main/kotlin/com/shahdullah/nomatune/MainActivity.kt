@@ -1850,10 +1850,44 @@ class MainActivity : ComponentActivity() {
                                 },
                                 bottomBar = {
                                     Box {
+                                        // Ported from ArchiveTune: the mini-player morphs toward the dock's
+                                        // geometry in proportion to nav proximity, so it needs the real value.
+                                        val navigationProximityProvider: () -> Float =
+                                            remember(playerBottomSheetState, bottomNavigationBarHeightState) {
+                                                {
+                                                    val navRatio =
+                                                        (bottomNavigationBarHeightState.value / navVisibleHeight)
+                                                            .coerceIn(0f, 1f)
+                                                    val isNavTransitioning =
+                                                        bottomNavigationBarHeightState.value > 0.dp &&
+                                                            bottomNavigationBarHeightState.value < navVisibleHeight
+                                                    val morphThreshold = MiniPlayerHeight + MiniPlayerBottomSpacing
+                                                    val swipeDeviation =
+                                                        if (isNavTransitioning &&
+                                                            playerBottomSheetState.targetAnchor == COLLAPSED_ANCHOR
+                                                        ) {
+                                                            0.dp
+                                                        } else {
+                                                            playerBottomSheetState.value.let { v ->
+                                                                if (v < playerBottomSheetState.collapsedBound) {
+                                                                    playerBottomSheetState.collapsedBound - v
+                                                                } else {
+                                                                    v - playerBottomSheetState.collapsedBound
+                                                                }
+                                                            }
+                                                        }
+                                                    val sheetPresence =
+                                                        (1f - (swipeDeviation / morphThreshold)).coerceIn(0f, 1f)
+                                                    navRatio * sheetPresence
+                                                }
+                                            }
+
                                         BottomSheetPlayer(
                                             state = playerBottomSheetState,
                                             navController = navController,
-                                            pureBlack = pureBlack
+                                            pureBlack = pureBlack,
+                                            navigationProximityProvider = navigationProximityProvider,
+                                            navigationBarMode = navigationBarMode,
                                         )
 
                                         if(useRail) return@Box
@@ -1889,39 +1923,6 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                         ) {
-                                            // Ported from ArchiveTune: the dock collapses its labels in
-                                            // proportion to how close the mini-player is, so it needs the
-                                            // real proximity value rather than a constant 0f.
-                                            val navigationProximityProvider: () -> Float =
-                                                remember(playerBottomSheetState, bottomNavigationBarHeightState) {
-                                                    {
-                                                        val navRatio =
-                                                            (bottomNavigationBarHeightState.value / navVisibleHeight)
-                                                                .coerceIn(0f, 1f)
-                                                        val isNavTransitioning =
-                                                            bottomNavigationBarHeightState.value > 0.dp &&
-                                                                bottomNavigationBarHeightState.value < navVisibleHeight
-                                                        val morphThreshold = MiniPlayerHeight + MiniPlayerBottomSpacing
-                                                        val swipeDeviation =
-                                                            if (isNavTransitioning &&
-                                                                playerBottomSheetState.targetAnchor == COLLAPSED_ANCHOR
-                                                            ) {
-                                                                0.dp
-                                                            } else {
-                                                                playerBottomSheetState.value.let { v ->
-                                                                    if (v < playerBottomSheetState.collapsedBound) {
-                                                                        playerBottomSheetState.collapsedBound - v
-                                                                    } else {
-                                                                        v - playerBottomSheetState.collapsedBound
-                                                                    }
-                                                                }
-                                                            }
-                                                        val sheetPresence =
-                                                            (1f - (swipeDeviation / morphThreshold)).coerceIn(0f, 1f)
-                                                        navRatio * sheetPresence
-                                                    }
-                                                }
-
                                             FloatingNavigationToolbar(
                                                 items = navigationItems,
                                                 pureBlack = pureBlack,

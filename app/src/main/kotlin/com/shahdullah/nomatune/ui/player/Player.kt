@@ -182,6 +182,7 @@ import com.shahdullah.nomatune.LocalDownloadUtil
 import com.shahdullah.nomatune.LocalPlayerConnection
 import com.shahdullah.nomatune.R
 import com.shahdullah.nomatune.canvas.models.CanvasArtwork
+import com.shahdullah.nomatune.constants.NavigationBarMode
 import com.shahdullah.nomatune.constants.NomaTuneCanvasKey
 import com.shahdullah.nomatune.constants.BackdropBlurAmountKey
 import com.shahdullah.nomatune.constants.BackdropEnabledKey
@@ -335,6 +336,9 @@ fun BottomSheetPlayer(
     navController: NavController,
     modifier: Modifier = Modifier,
     pureBlack: Boolean,
+    // Ported from ArchiveTune: lets the mini-player morph its geometry toward the dock.
+    navigationProximityProvider: () -> Float = { 0f },
+    navigationBarMode: NavigationBarMode = NavigationBarMode.CONNECTED,
 ) {
     val context = LocalContext.current
     val menuState = LocalMenuState.current
@@ -981,6 +985,8 @@ fun BottomSheetPlayer(
                 position = position,
                 duration = duration,
                 pureBlack = pureBlack,
+                navigationProximityProvider = navigationProximityProvider,
+                navigationBarMode = navigationBarMode,
             )
         },
     ) {

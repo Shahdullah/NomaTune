@@ -55,6 +55,13 @@ import com.shahdullah.nomatune.utils.rememberPreference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.unit.lerp
+import com.shahdullah.nomatune.constants.FloatingBarJunctionCornerRadius
+import com.shahdullah.nomatune.constants.FloatingBarOuterCornerRadius
+import com.shahdullah.nomatune.constants.FloatingBarStandaloneCornerRadius
+import com.shahdullah.nomatune.constants.NavigationBarMaxWidth
+import com.shahdullah.nomatune.constants.NavigationBarMode
 
 private const val MiniPlayerPaletteCacheSize = 24
 
@@ -64,12 +71,17 @@ fun MiniPlayer(
     duration: Long,
     modifier: Modifier = Modifier,
     pureBlack: Boolean,
+    // Ported from ArchiveTune: the dock and the standalone bar must not share geometry.
+    navigationProximityProvider: () -> Float = { 0f },
+    navigationBarMode: NavigationBarMode = NavigationBarMode.CONNECTED,
 ) {
     NewMiniPlayer(
         position = position,
         duration = duration,
         modifier = modifier,
-        pureBlack = pureBlack
+        pureBlack = pureBlack,
+        navigationProximityProvider = navigationProximityProvider,
+        navigationBarMode = navigationBarMode,
     )
 }
 
@@ -79,6 +91,8 @@ private fun NewMiniPlayer(
     duration: Long,
     modifier: Modifier = Modifier,
     pureBlack: Boolean,
+    navigationProximityProvider: () -> Float,
+    navigationBarMode: NavigationBarMode,
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val context = LocalContext.current
@@ -171,8 +185,26 @@ private fun NewMiniPlayer(
         useArtworkBackground = effectiveBackgroundStyle != MiniPlayerBackgroundStyle.THEME,
     )
 
+    // Ported from ArchiveTune: proximity drives the corner-radius lerp, and in CONNECTED the
+    // mini-player is width-constrained to the dock. Without this both modes render identically.
+    val proximity =
+        if (navigationBarMode == NavigationBarMode.CONNECTED) navigationProximityProvider() else 0f
+    val miniPlayerShape =
+        remember(proximity) {
+            RoundedCornerShape(
+                topStart = lerp(FloatingBarStandaloneCornerRadius.value, FloatingBarOuterCornerRadius.value, proximity).dp,
+                topEnd = lerp(FloatingBarStandaloneCornerRadius.value, FloatingBarOuterCornerRadius.value, proximity).dp,
+                bottomStart = lerp(FloatingBarStandaloneCornerRadius.value, FloatingBarJunctionCornerRadius.value, proximity).dp,
+                bottomEnd = lerp(FloatingBarStandaloneCornerRadius.value, FloatingBarJunctionCornerRadius.value, proximity).dp,
+            )
+        }
+    val constrainToNavigationWidth by remember {
+        derivedStateOf { navigationProximityProvider() > 0f }
+    }
+
     SwipeableMiniPlayerBox(
         modifier = modifier,
+        contentMaxWidth = if (constrainToNavigationWidth) NavigationBarMaxWidth else null,
         swipeSensitivity = swipeSensitivity,
         swipeThumbnail = swipeThumbnail,
         playerConnection = playerConnection,
@@ -186,7 +218,7 @@ private fun NewMiniPlayer(
                 .fillMaxWidth()
                 .height(64.dp)
                 .offset { IntOffset(offsetX.roundToInt(), 0) }
-                .clip(RoundedCornerShape(32.dp))
+                .clip(miniPlayerShape)
         ) {
             MiniPlayerBackground(
                 style = effectiveBackgroundStyle,

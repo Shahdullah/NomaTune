@@ -90,6 +90,9 @@ import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.unit.Dp
+import com.shahdullah.nomatune.constants.NavigationBarHorizontalPadding
 
 @Immutable
 data class MiniPlayerContentColors(
@@ -110,6 +113,7 @@ data class MiniPlayerContentColors(
 @Composable
 fun SwipeableMiniPlayerBox(
     modifier: Modifier = Modifier,
+    contentMaxWidth: Dp? = null,
     swipeSensitivity: Float,
     swipeThumbnail: Boolean,
     playerConnection: PlayerConnection,
@@ -136,11 +140,34 @@ fun SwipeableMiniPlayerBox(
     }
     val autoSwipeThreshold = calculateAutoSwipeThreshold(swipeSensitivity)
 
+    // Ported from ArchiveTune: in CONNECTED the bar is capped to the dock width and centred,
+    // which is what makes it read as "attached" instead of full-bleed.
+    val containerMaxWidth =
+        if (useLegacyBackground) {
+            null
+        } else {
+            contentMaxWidth?.let {
+                it + NavigationBarHorizontalPadding + NavigationBarHorizontalPadding
+            }
+        }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(MiniPlayerHeight)
-            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal))
+            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal)),
+        contentAlignment = Alignment.Center,
+    ) {
+      Box(
+        modifier = Modifier
+            .let { baseModifier ->
+                if (containerMaxWidth == null) {
+                    baseModifier.fillMaxWidth()
+                } else {
+                    baseModifier.widthIn(max = containerMaxWidth).fillMaxWidth()
+                }
+            }
+            .height(MiniPlayerHeight)
             .let { baseModifier ->
                 if (useLegacyBackground) {
                     baseModifier.background(
@@ -248,6 +275,7 @@ fun SwipeableMiniPlayerBox(
                 )
             }
         }
+    }
     }
 }
 
