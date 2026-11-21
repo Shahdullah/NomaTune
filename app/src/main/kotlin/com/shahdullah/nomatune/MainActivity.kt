@@ -977,11 +977,13 @@ class MainActivity : ComponentActivity() {
                         defaultValue = NavigationBarMode.CONNECTED,
                     )
 
-                    val bottomNavigationBarHeight by animateDpAsState(
-                        targetValue = if (shouldShowNavigationBar && !useRail) navVisibleHeight else 0.dp,
-                        animationSpec = if (disableAnimations) snap() else NavigationBarAnimationSpec,
-                        label = "",
-                    )
+                    val bottomNavigationBarHeightState =
+                        animateDpAsState(
+                            targetValue = if (shouldShowNavigationBar && !useRail) navVisibleHeight else 0.dp,
+                            animationSpec = if (disableAnimations) snap() else NavigationBarAnimationSpec,
+                            label = "",
+                        )
+                    val bottomNavigationBarHeight by bottomNavigationBarHeightState
 
                     val playerBottomSheetState =
                         rememberBottomSheetState(
@@ -1876,26 +1878,71 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                         ) {
+                                            // Ported from ArchiveTune: the dock collapses its labels in
+                                            // proportion to how close the mini-player is, so it needs the
+                                            // real proximity value rather than a constant 0f.
+                                            val navigationProximityProvider: () -> Float =
+                                                remember(playerBottomSheetState, bottomNavigationBarHeightState) {
+                                                    {
+                                                        val navRatio =
+                                                            (bottomNavigationBarHeightState.value / navVisibleHeight)
+                                                                .coerceIn(0f, 1f)
+                                                        val isNavTransitioning =
+                                                            bottomNavigationBarHeightState.value > 0.dp &&
+                                                                bottomNavigationBarHeightState.value < navVisibleHeight
+                                                        val morphThreshold = MiniPlayerHeight + MiniPlayerBottomSpacing
+                                                        val swipeDeviation =
+                                                            if (isNavTransitioning &&
+                                                                playerBottomSheetState.targetAnchor == COLLAPSED_ANCHOR
+                                                            ) {
+                                                                0.dp
+                                                            } else {
+                                                                playerBottomSheetState.value.let { v ->
+                                                                    if (v < playerBottomSheetState.collapsedBound) {
+                                                                        playerBottomSheetState.collapsedBound - v
+                                                                    } else {
+                                                                        v - playerBottomSheetState.collapsedBound
+                                                                    }
+                                                                }
+                                                            }
+                                                        val sheetPresence =
+                                                            (1f - (swipeDeviation / morphThreshold)).coerceIn(0f, 1f)
+                                                        navRatio * sheetPresence
+                                                    }
+                                                }
+
                                             FloatingNavigationToolbar(
                                                 items = navigationItems,
                                                 pureBlack = pureBlack,
                                                 backgroundStyle = navigationBarBackgroundStyle,
                                                 hazeState = hazeState,
                                                 navigationBarMode = navigationBarMode,
-                                                miniPlayerProximityProvider = { 0f },
+                                                miniPlayerProximityProvider = navigationProximityProvider,
                                                 modifier = Modifier
                                                     .align(Alignment.BottomCenter)
                                                     .padding(
                                                         start = NavigationBarHorizontalPadding,
                                                         end = NavigationBarHorizontalPadding,
                                                         bottom = bottomInset + floatingBarsBottomPadding,
-                                                    ),
+                                                    ).height(navVisibleHeight),
                                                 isSelected = { screen ->
                                                     navBackStackEntry?.destination?.hierarchy?.any { it.route == screen.route } ==
                                                         true
                                                 },
                                                 onItemClick = { screen, isSelected ->
-                                                    handlePrimaryNavigationClick(screen, isSelected)
+                                                    val wasPlayerActive = playerBottomSheetState.isExpandedOrExpanding
+                                                    if (wasPlayerActive) {
+                                                        playerBottomSheetState.collapse(
+                                                            if (disableAnimations) snap() else spring(),
+                                                        )
+                                                    }
+                                                    if (!wasPlayerActive || !isSelected) {
+                                                        handlePrimaryNavigationClick(screen, isSelected)
+                                                    }
+                                                },
+                                                onSearchItemDoubleClick = {
+                                                    searchSource = SearchSource.ONLINE
+                                                    openSearch()
                                                 },
                                             )
                                         }

@@ -35,15 +35,20 @@ fun Preferences.toPlaybackAuthState(): PlaybackAuthState {
         this[PoTokenKey]
             ?.trim()
             ?.takeIf { it.isNotEmpty() && !it.equals("null", ignoreCase = true) }
+    val cookie = this[InnerTubeCookieKey]
+    val signedIn = !cookie.isNullOrBlank()
     return PlaybackAuthState(
-        cookie = this[InnerTubeCookieKey],
+        cookie = cookie,
         visitorData = this[VisitorDataKey],
         dataSyncId = this[DataSyncIdKey],
-        poToken = legacyPoToken,
+        // A web PoToken is bound to the session it was minted in. Carrying one into a signed-out
+        // request makes YouTube answer "Please sign in" for every client, so it is only ever
+        // valid alongside the login cookie it was minted for.
+        poToken = legacyPoToken.takeIf { signedIn },
         poTokenGvs = null,
         poTokenGvsSession = null,
         poTokenPlayer = null,
-        webClientPoTokenEnabled = legacyPoToken != null,
+        webClientPoTokenEnabled = legacyPoToken != null && signedIn,
     ).normalized()
 }
 
