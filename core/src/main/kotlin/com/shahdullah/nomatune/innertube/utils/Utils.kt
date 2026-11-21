@@ -135,11 +135,15 @@ fun youtubeLoginCookieValue(cookie: String?): String? {
     }
 }
 
+// Keep this list identical to ArchiveTune's. In particular do NOT add APISID:
+// a signed-out device often still holds a residual APISID cookie from a WebView
+// login attempt. Treating that as a login makes hasLoginCookie true, so playback
+// ships a dead cookie without a matching SAPISIDHASH and YouTube answers
+// "Please sign in" instead of resolving the stream anonymously.
 private val YOUTUBE_LOGIN_COOKIE_NAMES = listOf(
     "SAPISID",
     "__Secure-3PAPISID",
-    "__Secure-1PAPISID",
-    "APISID"
+    "__Secure-1PAPISID"
 )
 
 fun String.parseTime(): Int? {
