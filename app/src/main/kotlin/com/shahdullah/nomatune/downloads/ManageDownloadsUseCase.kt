@@ -13,9 +13,7 @@
 package com.shahdullah.nomatune.downloads
 
 import android.content.Context
-import androidx.media3.common.C
 import androidx.media3.exoplayer.offline.Download
-import androidx.media3.exoplayer.offline.DownloadService
 import com.google.common.collect.ImmutableList
 import com.shahdullah.nomatune.db.MusicDatabase
 import com.shahdullah.nomatune.db.entities.Playlist
@@ -25,7 +23,9 @@ import com.shahdullah.nomatune.db.entities.Song
 import com.shahdullah.nomatune.models.MediaMetadata
 import com.shahdullah.nomatune.models.toMediaMetadata
 import com.shahdullah.nomatune.playback.DownloadUtil
-import com.shahdullah.nomatune.playback.ExoDownloadService
+import com.shahdullah.nomatune.ui.utils.sendPauseDownloads
+import com.shahdullah.nomatune.ui.utils.sendRemoveDownloads
+import com.shahdullah.nomatune.ui.utils.sendResumeDownloads
 import com.shahdullah.nomatune.utils.isLocalMediaId
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -226,37 +226,14 @@ class ManageDownloadsUseCase
         // ---- Actions ---------------------------------------------------------------
 
         fun pause(songIds: Collection<String>) {
-            songIds.forEach { songId ->
-                DownloadService.sendSetStopReason(
-                    context,
-                    ExoDownloadService::class.java,
-                    songId,
-                    C.STOP_REASON_PAUSED_BY_APP,
-                    false,
-                )
-            }
+            sendPauseDownloads(context, songIds.toList())
         }
 
         fun resume(songIds: Collection<String>) {
-            songIds.forEach { songId ->
-                DownloadService.sendSetStopReason(
-                    context,
-                    ExoDownloadService::class.java,
-                    songId,
-                    C.STOP_REASON_NONE,
-                    false,
-                )
-            }
+            sendResumeDownloads(context, songIds.toList())
         }
 
         fun remove(songIds: Collection<String>) {
-            songIds.forEach { songId ->
-                DownloadService.sendRemoveDownload(
-                    context,
-                    ExoDownloadService::class.java,
-                    songId,
-                    false,
-                )
-            }
+            sendRemoveDownloads(context, songIds.toList())
         }
     }
