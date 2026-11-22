@@ -1106,4 +1106,49 @@
         <item quantity="other">playlists</item>
     </plurals>
     <string name="downloads">Downloads</string>
+
+    <!-- Downloads library (ported) -->
+    <string name="cancel_all_downloads">Cancel all</string>
+    <string name="cancel_all_downloads_confirm">Every download in progress will stop and partially downloaded files will be deleted.</string>
+    <string name="cancel_download">Cancel download</string>
+    <string name="cancel_download_section_confirm">All downloads in this section will stop and partially downloaded files will be deleted.</string>
+    <string name="cancel_downloads_action">Cancel downloads</string>
+    <string name="cancel_downloads_title">Cancel downloads?</string>
+    <string name="clear_filters">Clear filters</string>
+    <string name="download_action_failed">Couldn’t update the download</string>
+    <string name="download_added_to_queue">Added to queue</string>
+    <string name="download_count">%1$d</string>
+    <string name="download_failed_state">Download failed</string>
+    <string name="download_in_progress">In progress</string>
+    <string name="download_meta_separator">" · "</string>
+    <string name="download_nothing_to_play">Nothing downloaded to play yet</string>
+    <string name="download_paused_progress">Paused · %1$d%%</string>
+    <string name="download_paused_state">Paused</string>
+    <string name="download_playing_next">Will play next</string>
+    <string name="download_progress_summary">%1$d%% · %2$s/s</string>
+    <string name="download_speed">%1$s/s</string>
+    <string name="download_storage_used">%1$s on this device</string>
+    <string name="download_waiting_state">Waiting to download</string>
+    <string name="downloads_load_failed">Couldn’t load downloads</string>
+    <string name="hide_download_tracks">Hide tracks</string>
+    <string name="keep_downloading">Keep downloading</string>
+    <string name="no_downloads">No downloaded music yet</string>
+    <string name="no_downloads_body">Download songs, albums, or playlists to listen without a connection.</string>
+    <string name="no_downloads_in_progress">No downloads in progress</string>
+    <string name="no_downloads_in_progress_body">Active, paused, and failed downloads appear here.</string>
+    <string name="no_matching_downloads">No matching downloads</string>
+    <string name="no_matching_downloads_body">Try a different search or filter.</string>
+    <string name="pause_all_downloads">Pause all</string>
+    <string name="pause_download">Pause</string>
+    <string name="remove_all_downloads">Remove all</string>
+    <string name="remove_download_confirm">Are you sure you want to remove this downloaded item? This action cannot be undone.</string>
+    <string name="remove_download_section_confirm">Are you sure you want to remove all downloads in this section? This action cannot be undone.</string>
+    <string name="resume_all_downloads">Resume all</string>
+    <string name="resume_download">Resume</string>
+    <string name="retry_failed_downloads">Retry failed</string>
+    <string name="search_downloads">Search downloads</string>
+    <string name="select_download">Select</string>
+    <string name="show_download_tracks">Show tracks</string>
+    <string name="sort_downloads">Sort downloads</string>
+    <string name="view_downloaded">View downloaded</string>
 </resources>

@@ -1953,6 +1953,19 @@ interface DatabaseDao {
     @Query("SELECT * FROM playlist_song_map")
     fun allPlaylistSongMapsForDownloads(): Flow<List<PlaylistSongMap>>
 
+    /** Every album, used to group downloaded songs by album on the Downloads page. */
+    @Transaction
+    @SuppressWarnings(RoomWarnings.QUERY_MISMATCH)
+    @Query("SELECT * FROM album ORDER BY rowId")
+    fun allAlbumsForDownloads(): Flow<List<Album>>
+
+    /** Every playlist with its song count, for the Downloads page. */
+    @Transaction
+    @Query(
+        "SELECT *, (SELECT COUNT(*) FROM playlist_song_map WHERE playlistId = playlist.id) AS songCount FROM playlist ORDER BY rowId",
+    )
+    fun allPlaylistsForDownloads(): Flow<List<Playlist>>
+
     @Transaction
     @Query("SELECT * FROM playlist_song_map WHERE playlistId = :playlistId AND position >= :from ORDER BY position")
     fun playlistSongMaps(

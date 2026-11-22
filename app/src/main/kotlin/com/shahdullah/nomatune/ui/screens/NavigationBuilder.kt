@@ -143,7 +143,7 @@ fun NavGraphBuilder.navigationBuilder(
         LocalSongScreen(navController)
     }
     composable("downloads") {
-        DownloadLibraryScreen(navController, scrollBehavior)
+        DownloadLibraryScreen(navController)
     }
     composable("history") {
         HistoryScreen(navController)
@@ -357,7 +357,7 @@ fun NavGraphBuilder.navigationBuilder(
         // empty auto-playlist. "downloaded" is a real page now, so route it there.
         val playlistArgument = it.arguments?.getString("playlist")
         if (playlistArgument == "downloaded") {
-            DownloadLibraryScreen(navController, scrollBehavior)
+            DownloadLibraryScreen(navController)
         } else {
             AutoPlaylistScreen(navController, scrollBehavior)
         }
