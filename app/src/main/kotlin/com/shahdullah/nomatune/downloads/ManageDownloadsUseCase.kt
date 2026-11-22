@@ -51,6 +51,9 @@ class ManageDownloadsUseCase
         private val database: MusicDatabase,
         private val downloadUtil: DownloadUtil,
     ) {
+        /** Resyncs the media3 download index before the page renders. */
+        suspend fun refreshDownloads() = downloadUtil.refreshDownloads()
+
         fun observeLibrary(): Flow<DownloadLibraryUiModel> =
             combine(
                 downloadUtil.downloads,

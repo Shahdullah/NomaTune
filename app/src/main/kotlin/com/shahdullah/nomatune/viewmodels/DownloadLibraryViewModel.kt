@@ -117,17 +117,35 @@ class DownloadLibraryViewModel
         private val _messages = MutableStateFlow<String?>(null)
         val messages: StateFlow<String?> = _messages.asStateFlow()
 
+        init {
+            // The download index is only mirrored into memory on listener callbacks, so
+            // resync it whenever the page opens instead of trusting a possibly stale map.
+            viewModelScope.launch(Dispatchers.IO) {
+                runCatching { manageDownloads.refreshDownloads() }
+                    .onFailure {
+                        Timber.tag("Downloads").w(it, "Could not refresh the download index")
+                        reportException(it)
+                    }
+            }
+        }
+
         val screenState: StateFlow<DownloadLibraryScreenState> =
             combine(
                 manageDownloads.observeLibrary().catch { throwable ->
                     if (throwable is CancellationException) throw throwable
                     reportException(throwable)
-                    emit(DownloadLibraryUiModel())
+                    // Report the failure instead of rendering "nothing downloaded", which
+                    // hid a broken data path behind an innocent-looking empty state.
+                    emitError(throwable)
                 },
                 _sortField,
                 _sortOrder,
             ) { library, field, order ->
-                if (library.isReallyEmpty) {
+                if (lastFailure != null) {
+                    DownloadLibraryScreenState.Error(
+                        lastFailure?.message ?: "Couldn't read your downloads",
+                    )
+                } else if (library.isReallyEmpty) {
                     DownloadLibraryScreenState.Empty
                 } else {
                     DownloadLibraryScreenState.Success(
@@ -141,6 +159,15 @@ class DownloadLibraryViewModel
                 SharingStarted.WhileSubscribed(5_000),
                 DownloadLibraryScreenState.Loading,
             )
+
+        private fun emitError(throwable: Throwable): DownloadLibraryUiModel {
+            lastFailure = throwable
+            return DownloadLibraryUiModel()
+        }
+
+        /** Set when the library flow failed, so the mapper can show an error, not "empty". */
+        @Volatile
+        private var lastFailure: Throwable? = null
 
         fun selectTab(tab: DownloadLibraryTab) {
             _tab.value = tab

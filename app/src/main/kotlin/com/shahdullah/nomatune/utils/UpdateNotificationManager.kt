@@ -21,6 +21,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.datastore.preferences.core.edit
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
@@ -76,21 +77,24 @@ object UpdateNotificationManager {
             return
         }
 
+        // NetworkConnected only. The old "battery not low" gate meant a phone on charge or
+        // at low battery would defer the check indefinitely, which is indistinguishable
+        // from the feature being broken.
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
-            .setRequiresBatteryNotLow(true)
             .build()
 
-        val updateCheckRequest = PeriodicWorkRequestBuilder<UpdateCheckWorker>(
-            6, TimeUnit.HOURS,
-            30, TimeUnit.MINUTES
-        )
-            .setConstraints(constraints)
-            .build()
+        // Six hours is the floor WorkManager allows for periodic work, so the first run is
+        // pulled forward to a few minutes after install rather than six hours.
+        val updateCheckRequest =
+            PeriodicWorkRequestBuilder<UpdateCheckWorker>(6, TimeUnit.HOURS, 30, TimeUnit.MINUTES)
+                .setConstraints(constraints)
+                .setInitialDelay(15, TimeUnit.MINUTES)
+                .build()
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP,
+            ExistingPeriodicWorkPolicy.UPDATE,
             updateCheckRequest
         )
     }
@@ -111,6 +115,7 @@ object UpdateNotificationManager {
                         .setRequiredNetworkType(NetworkType.CONNECTED)
                         .build(),
                 )
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.MINUTES)
                 .build()
         WorkManager.getInstance(context).enqueueUniqueWork(
             IMMEDIATE_WORK_NAME,
@@ -193,11 +198,21 @@ object UpdateNotificationManager {
             val lastNotified = dataStore.data.map { it[LastNotifiedVersionKey] ?: "" }.first()
 
             if (latestVersion != lastNotified && !Updater.isSameVersion(latestVersion, BuildConfig.VERSION_NAME)) {
-                showUpdateNotification(context, latestVersion, updateChannel)
-                dataStore.edit { it[LastNotifiedVersionKey] = latestVersion }
+                // Record the version only once the notification really posted. Previously
+                // this was written unconditionally, so a blocked post (permission denied,
+                // channel off) still marked the release as handled and it was never
+                // retried.
+                if (showUpdateNotification(context, latestVersion, updateChannel)) {
+                    dataStore.edit { it[LastNotifiedVersionKey] = latestVersion }
+                } else {
+                    Timber.tag("UpdateNotification")
+                        .w("Notification not shown (permission or channel disabled); will retry")
+                }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            // Silently fail
+            Timber.tag("UpdateNotification").w(e, "Could not post the update notification")
         }
     }
 
@@ -205,7 +220,7 @@ object UpdateNotificationManager {
         context: Context,
         newVersion: String,
         updateChannel: UpdateChannel = UpdateChannel.STABLE,
-    ) {
+    ): Boolean {
         createNotificationChannel(context)
 
         // Tapping the notification lands on Settings -> Updates, in-app, with the
@@ -260,10 +275,19 @@ object UpdateNotificationManager {
             )
             .build()
 
-        try {
+        // Android 13+ requires POST_NOTIFICATIONS at runtime. Check first: `notify` throws
+        // when it is missing, and that used to be swallowed so nothing was ever shown and
+        // nothing was logged.
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            Timber.tag("UpdateNotification").w("Notifications are disabled for the app")
+            return false
+        }
+        return try {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+            true
         } catch (e: SecurityException) {
-            // Missing POST_NOTIFICATIONS permission
+            Timber.tag("UpdateNotification").w(e, "Missing POST_NOTIFICATIONS permission")
+            false
         }
     }
 

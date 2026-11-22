@@ -131,9 +131,10 @@ fun DownloadLibraryScreen(
             }
 
             DownloadLibraryScreenState.Empty -> {
-                DownloadLibraryEmptyState(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                )
+                // Keep the header and tabs on screen: an empty model is also what you see
+                // while a queued download is waiting, and hiding the switcher made the
+                // page look broken rather than empty.
+                DownloadEmptyBody(modifier = Modifier.fillMaxSize().padding(innerPadding))
             }
 
             is DownloadLibraryScreenState.Error -> {
@@ -579,5 +580,70 @@ private fun DownloadLibraryEmptyState(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+@Composable
+private fun DownloadEmptyBody(modifier: Modifier = Modifier) {
+    Column(modifier = modifier.padding(horizontal = 16.dp)) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = stringResource(R.string.downloads),
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = "Nothing downloaded yet",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = true,
+                onClick = {},
+                label = { Text("Downloaded") },
+                leadingIcon = {
+                    Icon(
+                        painter = painterResource(R.drawable.done),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
+            )
+            FilterChip(
+                selected = false,
+                onClick = {},
+                label = { Text("In progress") },
+                leadingIcon = {
+                    Icon(
+                        painter = painterResource(R.drawable.download),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.download),
+                contentDescription = null,
+                modifier = Modifier.size(56.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(text = "No downloads yet", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Songs you download appear here and play without a connection.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.weight(1f))
     }
 }

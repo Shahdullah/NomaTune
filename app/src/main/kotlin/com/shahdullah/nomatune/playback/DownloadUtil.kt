@@ -59,6 +59,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runBlocking
 import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
@@ -307,6 +308,26 @@ class DownloadUtil
         }
 
         fun getDownload(songId: String): Flow<Download?> = downloads.map { it[songId] }
+
+        /**
+         * Re-reads the media3 download index into [downloads].
+         *
+         * The index is only pushed into [downloads] when a listener fires, so a download
+         * that was queued while another process (or an earlier session) owned the
+         * DownloadManager can be missing from the map even though it exists on disk.
+         * Callers that are about to render download state use this to resync first.
+         */
+        suspend fun refreshDownloads() {
+            withContext(Dispatchers.IO) {
+                val result = mutableMapOf<String, Download>()
+                downloadManager.downloadIndex.getDownloads().use { cursor ->
+                    while (cursor.moveToNext()) {
+                        result[cursor.download.request.id] = cursor.download
+                    }
+                }
+                downloads.value = result
+            }
+        }
 
         private fun resolveDownloadAudioQuality(lowDataModeActive: Boolean): AudioQuality =
             if (lowDataModeActive) AudioQuality.LOW else audioQuality

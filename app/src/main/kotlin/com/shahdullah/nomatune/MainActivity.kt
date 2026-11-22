@@ -1404,6 +1404,27 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    // Ask once for notification permission so the background update check
+                    // can actually post. Without this the worker runs, finds a release, and
+                    // silently fails to notify on Android 13+.
+                    var askedForNotificationPermission by rememberSaveable { mutableStateOf(false) }
+                    val notificationPermissionLauncher =
+                        rememberLauncherForActivityResult(
+                            androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+                        ) { /* result handled by the OS; nothing else to do */ }
+                    LaunchedEffect(Unit) {
+                        if (askedForNotificationPermission) return@LaunchedEffect
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                            ContextCompat.checkSelfPermission(
+                                this@MainActivity,
+                                android.Manifest.permission.POST_NOTIFICATIONS,
+                            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                        ) {
+                            askedForNotificationPermission = true
+                            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+
                     var showStarDialog by remember { mutableStateOf(false) }
 
                     LaunchedEffect(Unit) {
