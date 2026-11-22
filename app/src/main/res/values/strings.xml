@@ -1089,4 +1089,20 @@
     <string name="library_tab_sections">Library sections</string>
     <string name="library_your_albums">Your Albums</string>
     <string name="podcast">Podcast</string>
+    <plurals name="library_stat_songs">
+        <item quantity="one">song</item>
+        <item quantity="other">songs</item>
+    </plurals>
+    <plurals name="library_stat_albums">
+        <item quantity="one">album</item>
+        <item quantity="other">albums</item>
+    </plurals>
+    <plurals name="library_stat_artists">
+        <item quantity="one">artist</item>
+        <item quantity="other">artists</item>
+    </plurals>
+    <plurals name="library_stat_playlists">
+        <item quantity="one">playlist</item>
+        <item quantity="other">playlists</item>
+    </plurals>
 </resources>

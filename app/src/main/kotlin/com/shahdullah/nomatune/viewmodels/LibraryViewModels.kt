@@ -63,6 +63,7 @@ import com.shahdullah.nomatune.constants.SongSortType
 import com.shahdullah.nomatune.constants.SongSortTypeKey
 import com.shahdullah.nomatune.constants.TopSize
 import com.shahdullah.nomatune.db.MusicDatabase
+import com.shahdullah.nomatune.db.entities.Playlist
 import com.shahdullah.nomatune.db.entities.PlaylistEntity
 import com.shahdullah.nomatune.db.entities.PlaylistSongMap
 import com.shahdullah.nomatune.db.entities.Song
@@ -95,12 +96,19 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -576,7 +584,14 @@ constructor(
         observeLibraryTopMixes()
             .map<List<LibraryTopMix>, LibraryTopMixesUiState> { mixes ->
                 if (mixes.isEmpty()) {
-                    LibraryTopMixesUiState.Empty
+                    LibraryTopMixesUiState.Empty(
+                        reason =
+                            if (isBuildYourMixAvailable.value) {
+                                LibraryTopMixEmptyReason.NO_RECENT_HISTORY
+                            } else {
+                                LibraryTopMixEmptyReason.AI_NOT_CONFIGURED
+                            },
+                    )
                 } else {
                     LibraryTopMixesUiState.Success(
                         mixes = ImmutableList.copyOf(mixes.map { it.toUiModel() }),
@@ -589,6 +604,50 @@ constructor(
                 emit(LibraryTopMixesUiState.Error(context.getString(R.string.build_your_mix_empty_library)))
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryTopMixesUiState.Loading)
+
+    /**
+     * Most-played album over the last two weeks. Reads through the explicit-content
+     * preference so the spotlight respects the same filter as the lists.
+     */
+    val mostPlayedAlbumUiState =
+        context.dataStore.data
+            .map { it[HideExplicitKey] ?: false }
+            .distinctUntilChanged()
+            .flatMapLatest { hideExplicit ->
+                database
+                    .mostPlayedAlbums(
+                        fromTimeStamp = System.currentTimeMillis() - MOST_PLAYED_ALBUM_WINDOW_MILLIS,
+                        limit = 10,
+                    ).flatMapLatest { albums ->
+                        val album = albums.filterExplicitAlbums(hideExplicit).firstOrNull()
+                        if (album == null) {
+                            flowOf(MostPlayedAlbumUiState.Empty)
+                        } else {
+                            database.albumWithSongs(album.id).map { albumWithSongs ->
+                                val songs = albumWithSongs?.songs.orEmpty()
+                                if (songs.isEmpty()) {
+                                    MostPlayedAlbumUiState.Empty
+                                } else {
+                                    MostPlayedAlbumUiState.Success(
+                                        album =
+                                            MostPlayedAlbumUiModel(
+                                                id = album.id,
+                                                title = album.title,
+                                                thumbnailUrl = album.thumbnailUrl,
+                                                trackCount = songs.size,
+                                                tracks = ImmutableList.copyOf(songs.map { it.toMediaMetadata() }),
+                                            ),
+                                    )
+                                }
+                            }
+                        }
+                    }
+            }.flowOn(Dispatchers.IO)
+            .catch { throwable ->
+                if (throwable is CancellationException) throw throwable
+                reportException(throwable)
+                emit(MostPlayedAlbumUiState.Error(context.getString(R.string.error_unknown)))
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MostPlayedAlbumUiState.Loading)
 
     val isBuildYourMixAvailable =
         context.dataStore.data
@@ -1006,7 +1065,6 @@ constructor(
     }
 }
 
-@Immutable
 /** Maps a top-mix generation failure to a message the user can act on. */
 private fun TopMixGenerationFailure.toUserMessage(): String =
     when (this) {
@@ -1020,15 +1078,21 @@ private fun TopMixGenerationFailure.toUserMessage(): String =
             "Couldn't reach the AI provider — try again in a moment"
     }
 
+@Immutable
 sealed interface LibraryTopMixesUiState {
     data object Loading : LibraryTopMixesUiState
 
     @Immutable
     data class Success(
         val mixes: ImmutableList<LibraryTopMixUiModel>,
+        val isRefreshing: Boolean = false,
     ) : LibraryTopMixesUiState
 
-    data object Empty : LibraryTopMixesUiState
+    @Immutable
+    data class Empty(
+        val reason: LibraryTopMixEmptyReason,
+        val isRefreshing: Boolean = false,
+    ) : LibraryTopMixesUiState
 
     @Immutable
     data class Error(
@@ -1036,19 +1100,69 @@ sealed interface LibraryTopMixesUiState {
     ) : LibraryTopMixesUiState
 }
 
+/** Why the mix shelf has nothing to show, so the empty state can say what to do. */
+enum class LibraryTopMixEmptyReason {
+    AI_NOT_CONFIGURED,
+    NO_RECENT_HISTORY,
+}
+
+/** The album the user has actually been playing most, surfaced as a spotlight. */
 @Immutable
-data class LibraryTopMixUiModel(
-    val id: LibraryTopMixId,
+sealed interface MostPlayedAlbumUiState {
+    data object Loading : MostPlayedAlbumUiState
+
+    @Immutable
+    data class Success(
+        val album: MostPlayedAlbumUiModel,
+    ) : MostPlayedAlbumUiState
+
+    data object Empty : MostPlayedAlbumUiState
+
+    @Immutable
+    data class Error(
+        val message: String,
+    ) : MostPlayedAlbumUiState
+}
+
+@Immutable
+data class MostPlayedAlbumUiModel(
+    val id: String,
+    val title: String,
+    val thumbnailUrl: String?,
+    val trackCount: Int,
     val tracks: ImmutableList<MediaMetadata>,
-    val previewArtworkUrls: ImmutableList<String>,
 )
 
-private fun LibraryTopMix.toUiModel() =
-    LibraryTopMixUiModel(
-        id = id,
+private const val MOST_PLAYED_ALBUM_WINDOW_MILLIS = 14L * 24L * 60L * 60L * 1000L
+
+@Immutable
+data class LibraryTopMixUiModel(
+    val id: String,
+    val title: String,
+    val description: String,
+    val tracks: ImmutableList<MediaMetadata>,
+) {
+    val previewArtworkUrls: ImmutableList<String>
+        get() = ImmutableList.copyOf(tracks.mapNotNull { it.thumbnailUrl }.distinct().take(4))
+}
+
+private fun LibraryTopMix.toUiModel(): LibraryTopMixUiModel {
+    val (title, description) =
+        when (id) {
+            LibraryTopMixId.DAILY ->
+                "Daily Mix" to "Songs from your library you have not played yet"
+            LibraryTopMixId.CHILL ->
+                "Chill Mix" to "Lower-energy picks from artists you return to"
+            LibraryTopMixId.FOCUS ->
+                "Focus Mix" to "Deep cuts from the artists you play most"
+        }
+    return LibraryTopMixUiModel(
+        id = id.name,
+        title = title,
+        description = description,
         tracks = ImmutableList.copyOf(tracks),
-        previewArtworkUrls = ImmutableList.copyOf(previewArtworkUrls),
     )
+}
 
 enum class BuildYourMixBasis(
     val promptLabel: String,

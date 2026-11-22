@@ -1538,6 +1538,10 @@ fun ItemThumbnail(
     shouldLoadImage: Boolean = true,
     @DrawableRes placeholderIconRes: Int? = null,
     thumbnailRatio: Float = 1f,
+    // Optional overrides so callers can pin the fit mode and paint a placeholder
+    // backdrop before artwork loads. Both default to the previous behaviour.
+    contentScale: ContentScale? = null,
+    showPlaceholder: Boolean = false,
     // Ported from ArchiveTune: lets callers cap the decoded bitmap so large lists do not
     // decode full-size artwork. Optional, so every existing call site is unaffected.
     maxSizePx: Int? = null,
@@ -1553,6 +1557,7 @@ fun ItemThumbnail(
             .fillMaxSize()
             .aspectRatio(thumbnailRatio)
             .clip(shape)
+            .let { if (showPlaceholder) it.background(MaterialTheme.colorScheme.surfaceVariant) else it }
     ) {
         val (cropThumbnailToSquare, _) = rememberPreference(CropThumbnailToSquareKey, false)
         val isYouTubeThumb = thumbnailUrl?.contains("ytimg.com", ignoreCase = true) == true
@@ -1601,7 +1606,7 @@ fun ItemThumbnail(
                 AsyncImage(
                     model = request,
                     contentDescription = null,
-                    contentScale = if (shouldApplySquareCrop) ContentScale.Crop else ContentScale.Fit,
+                    contentScale = contentScale ?: if (shouldApplySquareCrop) ContentScale.Crop else ContentScale.Fit,
                     modifier = Modifier
                         .fillMaxSize()
                         .let { if (shouldApplySquareCrop) it.aspectRatio(1f) else it }
@@ -1708,7 +1713,7 @@ fun LocalThumbnail(
         AsyncImage(
             model = request,
             contentDescription = null,
-            contentScale = if (shouldApplySquareCrop) ContentScale.Crop else ContentScale.Fit,
+            contentScale = contentScale ?: if (shouldApplySquareCrop) ContentScale.Crop else ContentScale.Fit,
             modifier = Modifier.fillMaxSize().let { if (shouldApplySquareCrop) it.aspectRatio(1f) else it }
         )
 
