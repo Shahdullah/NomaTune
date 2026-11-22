@@ -127,6 +127,10 @@ data class DownloadLibraryUiModel(
 
     val totalEntries: Int
         get() = completedSections.sumOf { it.entries.size } + progressSections.sumOf { it.entries.size }
+
+    /** True when there is genuinely nothing to show on either tab. */
+    val isReallyEmpty: Boolean
+        get() = totalEntries == 0 && queue.activeCount == 0
 }
 
 /** Collapses media3's download state into the status the page renders. */

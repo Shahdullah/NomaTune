@@ -127,7 +127,7 @@ class DownloadLibraryViewModel
                 _sortField,
                 _sortOrder,
             ) { library, field, order ->
-                if (library.totalEntries == 0 && library.queue.activeCount == 0) {
+                if (library.isReallyEmpty) {
                     DownloadLibraryScreenState.Empty
                 } else {
                     DownloadLibraryScreenState.Success(

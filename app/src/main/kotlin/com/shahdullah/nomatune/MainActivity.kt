@@ -2187,6 +2187,7 @@ class MainActivity : ComponentActivity() {
                                         { latestVersionName },
                                         disableAnimations,
                                         onClearUpdateBadge = { latestVersionName = BuildConfig.VERSION_NAME },
+                                        onOpenSearch = openSearch,
                                     )
                                 }
                             }

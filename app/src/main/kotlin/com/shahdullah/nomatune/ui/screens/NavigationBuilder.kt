@@ -30,6 +30,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -116,9 +117,22 @@ fun NavGraphBuilder.navigationBuilder(
     latestVersionName: () -> String,
     disableAnimations: Boolean = false,
     onClearUpdateBadge: () -> Unit = {},
+    onOpenSearch: () -> Unit = {},
 ) {
     composable(Screens.Home.route) {
         HomeScreen(navController)
+    }
+    /**
+     * NomaTune's search is the expanding top bar rather than its own screen, so this
+     * route exists purely as a navigation target: it pops straight back to Home and asks
+     * the host to focus the search bar. Without it, any screen linking to
+     * [Screens.Search.route] throws and the app crashes.
+     */
+    composable(Screens.Search.route) {
+        LaunchedEffect(Unit) {
+            navController.popBackStack(Screens.Home.route, inclusive = false)
+            onOpenSearch()
+        }
     }
     composable(
         Screens.Library.route,

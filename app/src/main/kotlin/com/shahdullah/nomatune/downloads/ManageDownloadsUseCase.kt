@@ -75,12 +75,14 @@ class ManageDownloadsUseCase
             val songById = allSongs.associateBy { it.id }
 
             // ---- Songs -------------------------------------------------------------
+            // A song that was streamed and then downloaded may have no row in the songs
+            // table at all — NomaTune only builds a transient Song for playback. Falling
+            // back to the download's own request data keeps such a song on this page
+            // instead of silently vanishing.
             val songEntries =
-                downloads.values
-                    .mapNotNull { download ->
-                        val song = songById[download.request.id] ?: return@mapNotNull null
-                        song.toEntry(download)
-                    }
+                downloads.values.map { download ->
+                    songById[download.request.id]?.toEntry(download) ?: download.toEntryFromRequest()
+                }
 
             // ---- Albums ------------------------------------------------------------
             val albumEntries =
@@ -154,7 +156,7 @@ class ManageDownloadsUseCase
 
             // ---- In-progress -------------------------------------------------------
             val activeDownloads = downloads.values.filter { it.state != Download.STATE_COMPLETED }
-            val activeEntries = activeDownloads.mapNotNull { songById[it.request.id]?.toEntry(it) }
+            val activeEntries = activeDownloads.map { songById[it.request.id]?.toEntry(it) ?: it.toEntryFromRequest() }
             val progressSections =
                 if (activeEntries.isEmpty()) {
                     emptyList()
@@ -220,6 +222,37 @@ class ManageDownloadsUseCase
                 status = status,
                 progress = progress,
                 bytesDownloaded = download.bytesDownloaded,
+            )
+        }
+
+        /**
+         * Builds a song entry from the media3 request alone, for downloads whose song is
+         * not in the local database. The title is what the enqueue stored in the request
+         * payload, and artwork is derived from the video id when it looks like one.
+         */
+        private fun Download.toEntryFromRequest(): DownloadEntryUiModel {
+            val title =
+                runCatching { String(request.data ?: ByteArray(0)) }
+                    .getOrDefault("")
+                    .trim()
+                    .ifBlank { request.id }
+            val looksLikeYouTubeId =
+                request.id.length == 11 && request.id.all { it.isLetterOrDigit() || it == '-' || it == '_' }
+            val status = toDownloadStatus()
+            return DownloadEntryUiModel(
+                id = request.id,
+                title = title,
+                subtitle = null,
+                thumbnailUrl = if (looksLikeYouTubeId) "https://i.ytimg.com/vi/${request.id}/mqdefault.jpg" else null,
+                mediaType = DownloadMediaType.SONG,
+                songIds = listOf(request.id),
+                playbackMetadata = null,
+                durationSeconds = null,
+                totalCount = 1,
+                modifiedAtMs = updatedAtMillis(),
+                status = status,
+                progress = if (status == DownloadStatus.COMPLETED) 1f else 0f,
+                bytesDownloaded = bytesDownloaded,
             )
         }
 
