@@ -1949,6 +1949,10 @@ interface DatabaseDao {
     @Query("SELECT * FROM playlist_song_map WHERE songId = :songId")
     fun playlistSongMaps(songId: String): List<PlaylistSongMap>
 
+    /** Every playlist/song link, used to work out which playlists are fully downloaded. */
+    @Query("SELECT * FROM playlist_song_map")
+    fun allPlaylistSongMapsForDownloads(): Flow<List<PlaylistSongMap>>
+
     @Transaction
     @Query("SELECT * FROM playlist_song_map WHERE playlistId = :playlistId AND position >= :from ORDER BY position")
     fun playlistSongMaps(

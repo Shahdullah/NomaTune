@@ -22,6 +22,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.exoplayer.offline.Download
+import androidx.room.withTransaction
 import com.google.common.collect.ImmutableList
 import com.shahdullah.nomatune.R
 import com.shahdullah.nomatune.ai.AiServiceConfig
@@ -97,10 +98,13 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.combine
+import com.shahdullah.nomatune.utils.isLocalMediaId
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.CoroutineScope
@@ -470,12 +474,38 @@ class LibraryPlaylistsViewModel
 @Inject
 constructor(
     @ApplicationContext context: Context,
-    database: MusicDatabase,
+    private val database: MusicDatabase,
+    downloadUtil: DownloadUtil,
     private val syncUtils: SyncUtils,
     refreshLibraryUseCase: RefreshLibraryUseCase,
 ) : ViewModel() {
     private val refresher = LibraryRefresher(viewModelScope, refreshLibraryUseCase)
     val refreshState = refresher.state
+
+    /** Playlists whose every song is already downloaded, so the UI can badge them. */
+    val downloadedPlaylistIds =
+        combine(
+            database.allPlaylistSongMapsForDownloads(),
+            downloadUtil.downloads,
+        ) { playlistSongMaps, downloads ->
+            playlistSongMaps
+                .groupBy { it.playlistId }
+                .mapNotNull { (playlistId, songMaps) ->
+                    val songIds =
+                        songMaps
+                            .asSequence()
+                            .map { it.songId }
+                            .filterNot { it.isLocalMediaId() }
+                            .distinct()
+                            .toList()
+                    playlistId.takeIf {
+                        songIds.isNotEmpty() &&
+                            songIds.all { songId ->
+                                downloads[songId]?.state == Download.STATE_COMPLETED
+                            }
+                    }
+                }.toSet()
+        }.stateIn(viewModelScope, SharingStarted.Lazily, emptySet())
 
     val allPlaylists =
         context.dataStore.data
@@ -512,7 +542,7 @@ constructor(
             runCatching {
                 database.withTransaction {
                     playlists.forEachIndexed { index, playlist ->
-                        setPlaylistCustomOrder(playlist.id, index)
+                        database.setPlaylistCustomOrder(playlist.id, index)
                     }
                 }
             }.onFailure { reportException(it) }

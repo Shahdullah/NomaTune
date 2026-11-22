@@ -141,6 +141,7 @@ fun LibraryScreen(
 
     if (showTagsManagementDialog) {
         TagsManagementDialog(
+            database = database,
             onDismiss = { showTagsManagementDialog = false },
         )
     }

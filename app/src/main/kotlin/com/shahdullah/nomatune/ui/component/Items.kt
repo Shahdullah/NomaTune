@@ -1713,7 +1713,7 @@ fun LocalThumbnail(
         AsyncImage(
             model = request,
             contentDescription = null,
-            contentScale = contentScale ?: if (shouldApplySquareCrop) ContentScale.Crop else ContentScale.Fit,
+            contentScale = if (shouldApplySquareCrop) ContentScale.Crop else ContentScale.Fit,
             modifier = Modifier.fillMaxSize().let { if (shouldApplySquareCrop) it.aspectRatio(1f) else it }
         )
 
