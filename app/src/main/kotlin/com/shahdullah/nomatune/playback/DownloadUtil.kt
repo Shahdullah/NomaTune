@@ -60,6 +60,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 import kotlinx.coroutines.runBlocking
 import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
@@ -270,6 +271,16 @@ class DownloadUtil
                 maxParallelDownloads = DEFAULT_MAX_PARALLEL_DOWNLOADS
                 addListener(
                     object : DownloadManager.Listener {
+                        override fun onInitialized(downloadManager: DownloadManager) {
+                            // Downloads that already exist on disk - and, crucially, ones that
+                            // are still in progress from an earlier session - are only ever
+                            // delivered here. Without this the in-memory map starts empty and
+                            // fills up only when a download happens to change state, so the
+                            // Downloads page could show nothing at all while the system
+                            // notification happily reported "Downloading N songs".
+                            downloadScope.launch { refreshSnapshot() }
+                        }
+
                         override fun onDownloadChanged(
                             downloadManager: DownloadManager,
                             download: Download,
@@ -318,14 +329,27 @@ class DownloadUtil
          * Callers that are about to render download state use this to resync first.
          */
         suspend fun refreshDownloads() {
-            withContext(Dispatchers.IO) {
-                val result = mutableMapOf<String, Download>()
+            withContext(Dispatchers.IO) { refreshSnapshot() }
+        }
+
+        /** Reads the whole media3 download index into [downloads]. */
+        private fun refreshSnapshot() {
+            val result = mutableMapOf<String, Download>()
+            runCatching {
                 downloadManager.downloadIndex.getDownloads().use { cursor ->
                     while (cursor.moveToNext()) {
-                        result[cursor.download.request.id] = cursor.download
+                        val download = cursor.download
+                        result[download.request.id] = download
                     }
                 }
-                downloads.value = result
+            }.onFailure { Timber.tag("DownloadUtil").w(it, "Could not read the download index") }
+
+            // Keep whatever the listeners already know about, so a partial read can never
+            // erase a download that is mid-transfer.
+            downloads.update { known ->
+                val merged = result.toMutableMap()
+                known.forEach { (id, download) -> merged.set(id, download) }
+                merged
             }
         }
 

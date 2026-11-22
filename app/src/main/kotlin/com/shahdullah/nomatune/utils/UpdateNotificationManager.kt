@@ -40,6 +40,8 @@ import com.shahdullah.nomatune.MainActivity
 import com.shahdullah.nomatune.R
 import com.shahdullah.nomatune.constants.EnableUpdateNotificationKey
 import com.shahdullah.nomatune.constants.LastNotifiedVersionKey
+import com.shahdullah.nomatune.constants.LastUpdateCheckNoteKey
+import com.shahdullah.nomatune.constants.LastUpdateCheckAtKey
 import com.shahdullah.nomatune.constants.LastUpdateCheckKey
 import com.shahdullah.nomatune.constants.UpdateChannel
 import com.shahdullah.nomatune.constants.UpdateChannelKey
@@ -122,6 +124,34 @@ object UpdateNotificationManager {
             ExistingWorkPolicy.REPLACE,
             request,
         )
+    }
+
+    /** Records that a check ran, so the Updates screen can prove the worker is alive. */
+    suspend fun recordCheckPerformed(context: Context, source: String) {
+        runCatching {
+            context.dataStore.edit { settings ->
+                settings[LastUpdateCheckAtKey] = System.currentTimeMillis()
+                settings[LastUpdateCheckNoteKey] = "checked ($source)"
+            }
+        }
+    }
+
+    /** Records a non-fatal outcome, e.g. "already up to date". */
+    suspend fun recordCheckNote(context: Context, note: String) {
+        runCatching {
+            context.dataStore.edit { settings -> settings[LastUpdateCheckNoteKey] = note }
+        }
+    }
+
+    /** Records a failed check so silence has a visible cause instead of being ambiguous. */
+    suspend fun recordCheckFailure(context: Context, error: Throwable) {
+        runCatching {
+            context.dataStore.edit { settings ->
+                settings[LastUpdateCheckAtKey] = System.currentTimeMillis()
+                settings[LastUpdateCheckNoteKey] =
+                    "failed: " + (error.message ?: error::class.java.simpleName)
+            }
+        }
     }
 
     fun cancelPeriodicUpdateCheck(context: Context) {

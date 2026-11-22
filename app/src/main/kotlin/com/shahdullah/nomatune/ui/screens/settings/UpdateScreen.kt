@@ -111,6 +111,8 @@ import kotlinx.coroutines.launch
 import com.shahdullah.nomatune.BuildConfig
 import com.shahdullah.nomatune.LocalPlayerAwareWindowInsets
 import com.shahdullah.nomatune.R
+import com.shahdullah.nomatune.constants.LastUpdateCheckAtKey
+import com.shahdullah.nomatune.constants.LastUpdateCheckNoteKey
 import com.shahdullah.nomatune.constants.EnableUpdateNotificationKey
 import com.shahdullah.nomatune.constants.UpdateChannel
 import com.shahdullah.nomatune.constants.UpdateChannelKey
@@ -141,6 +143,11 @@ fun UpdateScreen(
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
+
+    // Surfaced from the background worker. Silently receiving no notification is
+    // indistinguishable from "no new release", so the last check is shown as text.
+    val lastCheckAt by rememberPreference(LastUpdateCheckAtKey, 0L)
+    val lastCheckNote by rememberPreference(LastUpdateCheckNoteKey, "")
     val nightlyInstallUrl = remember { Updater.getLatestNightlyDownloadUrl() }
 
     val (enableUpdateNotification, onEnableUpdateNotificationChange) =
@@ -673,6 +680,32 @@ fun UpdateScreen(
                     },
                     onCheckForUpdate = onCheckForUpdate,
                 )
+            }
+
+            item {
+                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    val summary =
+                        if (lastCheckAt <= 0L) {
+                            "Background check has not run yet"
+                        } else {
+                            "Last background check: " +
+                                android.text.format.DateFormat
+                                    .format("d MMM, h:mm a", lastCheckAt)
+                                    .toString()
+                        }
+                    Text(
+                        text = summary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (lastCheckNote.isNotBlank()) {
+                        Text(
+                            text = lastCheckNote,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
 
             item {

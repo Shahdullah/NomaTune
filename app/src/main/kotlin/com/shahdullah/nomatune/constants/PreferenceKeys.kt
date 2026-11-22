@@ -852,6 +852,12 @@ val UpdateChannelKey = stringPreferencesKey("updateChannel")
 val LastUpdateCheckKey = longPreferencesKey("lastUpdateCheck")
 val LastNotifiedVersionKey = stringPreferencesKey("lastNotifiedVersion")
 
+/** When the background update check last actually ran; surfaced in Settings -> Updates. */
+val LastUpdateCheckAtKey = longPreferencesKey("lastUpdateCheckAt")
+
+/** Why the last background update check produced (or did not produce) a notification. */
+val LastUpdateCheckNoteKey = stringPreferencesKey("lastUpdateCheckNote")
+
 val GitHubContributorsEtagKey = stringPreferencesKey("github_contributors_etag")
 val GitHubContributorsJsonKey = stringPreferencesKey("github_contributors_json")
 val GitHubContributorsLastCheckedAtKey = longPreferencesKey("github_contributors_last_checked_at")
