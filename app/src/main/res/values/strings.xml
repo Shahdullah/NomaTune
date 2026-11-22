@@ -1105,4 +1105,5 @@
         <item quantity="one">playlist</item>
         <item quantity="other">playlists</item>
     </plurals>
+    <string name="downloads">Downloads</string>
 </resources>

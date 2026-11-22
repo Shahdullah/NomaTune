@@ -24,6 +24,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import kotlinx.coroutines.CoroutineScope
@@ -48,6 +50,7 @@ object UpdateNotificationManager {
     internal const val CHANNEL_ID = "update_notification_channel"
     private const val NOTIFICATION_ID = 9999
     private const val WORK_NAME = "update_check_work"
+    private const val IMMEDIATE_WORK_NAME = "immediate_update_check"
     private const val CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -89,6 +92,30 @@ object UpdateNotificationManager {
             WORK_NAME,
             ExistingPeriodicWorkPolicy.KEEP,
             updateCheckRequest
+        )
+    }
+
+    /**
+     * Runs a one-shot check soon after launch, in addition to the six-hourly periodic work.
+     *
+     * Without this a fresh install could wait up to six hours before its first look at the
+     * release list, which is long enough to miss a release entirely. Repeated calls are
+     * harmless: the work is unique, and a notification is only ever posted once per version.
+     */
+    fun enqueueImmediateUpdateCheck(context: Context) {
+        if (!BuildConfig.UPDATER_AVAILABLE) return
+        val request =
+            OneTimeWorkRequestBuilder<UpdateCheckWorker>()
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build(),
+                )
+                .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            IMMEDIATE_WORK_NAME,
+            ExistingWorkPolicy.REPLACE,
+            request,
         )
     }
 

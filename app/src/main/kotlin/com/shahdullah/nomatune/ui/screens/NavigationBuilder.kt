@@ -63,6 +63,7 @@ import com.shahdullah.nomatune.ui.screens.artist.ArtistAlbumsScreen
 import com.shahdullah.nomatune.ui.screens.artist.ArtistItemsScreen
 import com.shahdullah.nomatune.ui.screens.artist.ArtistScreen
 import com.shahdullah.nomatune.ui.screens.artist.ArtistSongsScreen
+import com.shahdullah.nomatune.ui.screens.downloads.DownloadLibraryScreen
 import com.shahdullah.nomatune.ui.screens.library.LocalSongScreen
 import com.shahdullah.nomatune.ui.screens.library.LibraryScreen
 import com.shahdullah.nomatune.ui.screens.playlist.AutoPlaylistScreen
@@ -126,6 +127,9 @@ fun NavGraphBuilder.navigationBuilder(
     }
     composable("local_songs") {
         LocalSongScreen(navController)
+    }
+    composable("downloads") {
+        DownloadLibraryScreen(navController, scrollBehavior)
     }
     composable("history") {
         HistoryScreen(navController)
@@ -335,7 +339,14 @@ fun NavGraphBuilder.navigationBuilder(
             },
         ),
     ) {
-        AutoPlaylistScreen(navController, scrollBehavior)
+        // The mixes tab already links to auto_playlist/downloaded; that used to land on an
+        // empty auto-playlist. "downloaded" is a real page now, so route it there.
+        val playlistArgument = it.arguments?.getString("playlist")
+        if (playlistArgument == "downloaded") {
+            DownloadLibraryScreen(navController, scrollBehavior)
+        } else {
+            AutoPlaylistScreen(navController, scrollBehavior)
+        }
     }
     composable(
         route = "cache_playlist/{playlist}",

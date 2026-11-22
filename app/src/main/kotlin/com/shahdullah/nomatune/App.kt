@@ -114,6 +114,7 @@ class App : Application(), SingletonImageLoader.Factory {
         } catch (_: Exception) {}
 
         initializeCriticalSync()
+        scheduleUpdateCheck()
         initializeDeferredAsync()
     }
 
@@ -121,6 +122,27 @@ class App : Application(), SingletonImageLoader.Factory {
         super.onTrimMemory(level)
         if (::youtubeiStreamRepository.isInitialized) {
             youtubeiStreamRepository.trimMemory(level)
+        }
+    }
+
+    /**
+     * Enqueues the periodic update check as soon as the process starts.
+     *
+     * Previously the only thing that ever called [UpdateNotificationManager.schedulePeriodicUpdateCheck]
+     * was the Updates settings screen, so a user who never opened that screen had no work
+     * enqueued at all and could sit on an old build indefinitely without ever being told a
+     * new release existed. WorkManager's KEEP policy makes this idempotent.
+     */
+    private fun scheduleUpdateCheck() {
+        applicationScope.launch(Dispatchers.IO) {
+            runCatching {
+                com.shahdullah.nomatune.utils.UpdateNotificationManager.createNotificationChannel(this@App)
+                val enabled = dataStore.data.first()[com.shahdullah.nomatune.constants.EnableUpdateNotificationKey] ?: true
+                if (enabled) {
+                    com.shahdullah.nomatune.utils.UpdateNotificationManager.schedulePeriodicUpdateCheck(this@App)
+                    com.shahdullah.nomatune.utils.UpdateNotificationManager.enqueueImmediateUpdateCheck(this@App)
+                }
+            }.onFailure { reportException(it) }
         }
     }
 
