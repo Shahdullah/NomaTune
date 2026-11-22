@@ -73,9 +73,16 @@ import com.shahdullah.nomatune.extensions.toEnum
 import com.shahdullah.nomatune.library.LibraryTopMix
 import com.shahdullah.nomatune.library.LibraryTopMixId
 import com.shahdullah.nomatune.library.ObserveLibraryTopMixesUseCase
+import com.shahdullah.nomatune.library.RefreshLibraryTopMixesResult
+import com.shahdullah.nomatune.library.RefreshLibraryTopMixesUseCase
+import com.shahdullah.nomatune.library.TopMixGenerationFailure
 import com.shahdullah.nomatune.models.MediaMetadata
 import com.shahdullah.nomatune.models.toMediaMetadata
 import com.shahdullah.nomatune.playback.DownloadUtil
+import com.shahdullah.nomatune.library.LibrarySyncFailure
+import com.shahdullah.nomatune.library.LibrarySyncTarget
+import com.shahdullah.nomatune.library.RefreshLibraryResult
+import com.shahdullah.nomatune.library.RefreshLibraryUseCase
 import com.shahdullah.nomatune.utils.SyncUtils
 import com.shahdullah.nomatune.utils.dataStore
 import com.shahdullah.nomatune.utils.get
@@ -104,6 +111,69 @@ import java.util.Locale
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 
+/**
+ * Outcome of the last library refresh, so the UI can explain *why* a pull-to-refresh
+ * did nothing (not signed in, sync switched off, or the request failed) instead of
+ * silently stopping its spinner.
+ */
+sealed interface LibraryRefreshState {
+    data object Loading : LibraryRefreshState
+
+    data object Success : LibraryRefreshState
+
+    data object Empty : LibraryRefreshState
+
+    data class Error(val failure: LibrarySyncFailure) : LibraryRefreshState
+}
+
+/**
+ * Shared refresh plumbing for the library screens. Runs [RefreshLibraryUseCase],
+ * publishes [refreshState], and keeps only the newest request's result so a fast
+ * second pull cannot be overwritten by a slower first one.
+ */
+internal class LibraryRefresher(
+    private val scope: CoroutineScope,
+    private val useCase: RefreshLibraryUseCase,
+) {
+    private val _state = MutableStateFlow<LibraryRefreshState>(LibraryRefreshState.Empty)
+    val state = _state.asStateFlow()
+
+    @Volatile
+    private var job: Job? = null
+
+    @Volatile
+    private var generation = 0L
+
+    fun refresh(target: LibrarySyncTarget) {
+        job?.cancel()
+        val current = ++generation
+        _state.value = LibraryRefreshState.Loading
+        job =
+            scope.launch(Dispatchers.IO) {
+                val result =
+                    try {
+                        useCase(target)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        RefreshLibraryResult.Failure(LibrarySyncFailure.RequestFailed)
+                    }
+                if (current == generation) {
+                    _state.value =
+                        when (result) {
+                            RefreshLibraryResult.Success -> LibraryRefreshState.Success
+                            is RefreshLibraryResult.Failure -> LibraryRefreshState.Error(result.reason)
+                        }
+                }
+            }
+    }
+
+    /** Clears a consumed error so the snackbar is not shown twice. */
+    fun clearError() {
+        if (_state.value is LibraryRefreshState.Error) _state.value = LibraryRefreshState.Empty
+    }
+}
+
 @HiltViewModel
 class LibrarySongsViewModel
 @Inject
@@ -112,9 +182,13 @@ constructor(
     database: MusicDatabase,
     downloadUtil: DownloadUtil,
     private val syncUtils: SyncUtils,
+    refreshLibraryUseCase: RefreshLibraryUseCase,
 ) : ViewModel() {
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
+
+    private val refresher = LibraryRefresher(viewModelScope, refreshLibraryUseCase)
+    val refreshState = refresher.state
 
     val allSongs =
         context.dataStore.data
@@ -168,21 +242,25 @@ constructor(
 
     fun refresh(filter: SongFilter) {
         if (_isRefreshing.value) return
-        viewModelScope.launch(Dispatchers.IO) {
-            _isRefreshing.value = true
-            try {
-                when (filter) {
-                    SongFilter.LIKED -> syncUtils.syncLikedSongs()
-                    SongFilter.LIBRARY -> syncUtils.syncLibrarySongs()
-                    SongFilter.DOWNLOADED -> Unit
-                }
-            } catch (e: Exception) {
-                reportException(e)
-            } finally {
-                _isRefreshing.value = false
+        _isRefreshing.value = true
+        val target =
+            when (filter) {
+                SongFilter.LIKED -> LibrarySyncTarget.LikedSongs
+                SongFilter.LIBRARY -> LibrarySyncTarget.Songs
+                SongFilter.DOWNLOADED -> null
             }
+        if (target == null) {
+            _isRefreshing.value = false
+            return
+        }
+        refresher.refresh(target)
+        viewModelScope.launch {
+            refresher.state.filter { it !is LibraryRefreshState.Loading }.first()
+            _isRefreshing.value = false
         }
     }
+
+    fun onRefreshErrorShown() = refresher.clearError()
 
     fun syncLikedSongs() {
         refresh(SongFilter.LIKED)
@@ -200,9 +278,13 @@ constructor(
     @ApplicationContext context: Context,
     database: MusicDatabase,
     private val syncUtils: SyncUtils,
+    refreshLibraryUseCase: RefreshLibraryUseCase,
 ) : ViewModel() {
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
+
+    private val refresher = LibraryRefresher(viewModelScope, refreshLibraryUseCase)
+    val refreshState = refresher.state
 
     val allArtists =
         context.dataStore.data
@@ -223,17 +305,15 @@ constructor(
     fun refresh(filter: ArtistFilter) {
         if (filter != ArtistFilter.LIKED) return
         if (_isRefreshing.value) return
-        viewModelScope.launch(Dispatchers.IO) {
-            _isRefreshing.value = true
-            try {
-                syncUtils.syncArtistsSubscriptions()
-            } catch (e: Exception) {
-                reportException(e)
-            } finally {
-                _isRefreshing.value = false
-            }
+        _isRefreshing.value = true
+        refresher.refresh(LibrarySyncTarget.Artists)
+        viewModelScope.launch {
+            refresher.state.filter { it !is LibraryRefreshState.Loading }.first()
+            _isRefreshing.value = false
         }
     }
+
+    fun onRefreshErrorShown() = refresher.clearError()
 
     fun sync() {
         refresh(ArtistFilter.LIKED)
@@ -269,9 +349,13 @@ constructor(
     database: MusicDatabase,
     downloadUtil: DownloadUtil,
     private val syncUtils: SyncUtils,
+    refreshLibraryUseCase: RefreshLibraryUseCase,
 ) : ViewModel() {
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
+
+    private val refresher = LibraryRefresher(viewModelScope, refreshLibraryUseCase)
+    val refreshState = refresher.state
 
     val allAlbums =
         context.dataStore.data
@@ -332,17 +416,15 @@ constructor(
     fun refresh(filter: AlbumFilter) {
         if (filter != AlbumFilter.LIKED) return
         if (_isRefreshing.value) return
-        viewModelScope.launch(Dispatchers.IO) {
-            _isRefreshing.value = true
-            try {
-                syncUtils.syncLikedAlbums()
-            } catch (e: Exception) {
-                reportException(e)
-            } finally {
-                _isRefreshing.value = false
-            }
+        _isRefreshing.value = true
+        refresher.refresh(LibrarySyncTarget.Albums)
+        viewModelScope.launch {
+            refresher.state.filter { it !is LibraryRefreshState.Loading }.first()
+            _isRefreshing.value = false
         }
     }
+
+    fun onRefreshErrorShown() = refresher.clearError()
 
     fun sync() {
         refresh(AlbumFilter.LIKED)
@@ -382,7 +464,11 @@ constructor(
     @ApplicationContext context: Context,
     database: MusicDatabase,
     private val syncUtils: SyncUtils,
+    refreshLibraryUseCase: RefreshLibraryUseCase,
 ) : ViewModel() {
+    private val refresher = LibraryRefresher(viewModelScope, refreshLibraryUseCase)
+    val refreshState = refresher.state
+
     val allPlaylists =
         context.dataStore.data
             .map {
@@ -397,11 +483,31 @@ constructor(
     val isRefreshing = _isRefreshing.asStateFlow()
 
     fun sync() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _isRefreshing.value = true
-            syncUtils.syncSavedPlaylists()
-            syncUtils.syncAutoSyncPlaylists()
+        if (_isRefreshing.value) return
+        _isRefreshing.value = true
+        refresher.refresh(LibrarySyncTarget.Playlists)
+        viewModelScope.launch {
+            refresher.state.filter { it !is LibraryRefreshState.Loading }.first()
             _isRefreshing.value = false
+        }
+    }
+
+    fun onRefreshErrorShown() = refresher.clearError()
+
+    /**
+     * Persists a new manual playlist order. Called once when a drag settles rather
+     * than on every move, so a long drag does not write the whole list per frame.
+     */
+    fun updateCustomPlaylistOrder(playlists: List<Playlist>) {
+        if (playlists.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                database.withTransaction {
+                    playlists.forEachIndexed { index, playlist ->
+                        setPlaylistCustomOrder(playlist.id, index)
+                    }
+                }
+            }.onFailure { reportException(it) }
         }
     }
 
@@ -448,9 +554,21 @@ constructor(
     private val database: MusicDatabase,
     private val syncUtils: SyncUtils,
     observeLibraryTopMixes: ObserveLibraryTopMixesUseCase,
+    private val refreshLibraryTopMixes: RefreshLibraryTopMixesUseCase,
+    refreshLibraryUseCase: RefreshLibraryUseCase,
 ) : ViewModel() {
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
+
+    private val refresher = LibraryRefresher(viewModelScope, refreshLibraryUseCase)
+    val refreshState = refresher.state
+
+    private val _topMixEvents = MutableSharedFlow<String>()
+    val topMixEvents: SharedFlow<String> = _topMixEvents.asSharedFlow()
+
+    private val _isTopMixRefreshing = MutableStateFlow(false)
+    val isTopMixRefreshing: StateFlow<Boolean> = _isTopMixRefreshing.asStateFlow()
+
     private val _buildYourMixState = MutableStateFlow<BuildYourMixUiState>(BuildYourMixUiState.Idle)
     val buildYourMixState = _buildYourMixState.asStateFlow()
 
@@ -484,20 +602,44 @@ constructor(
             .distinctUntilChanged()
             .stateIn(viewModelScope, SharingStarted.Lazily, false)
 
-    fun syncAllLibrary() {
-        if (_isRefreshing.value) return
-        _isRefreshing.value = true
+    /**
+     * Regenerates the AI top mixes. Failures during a refresh are surfaced as a
+     * one-shot snackbar message so the existing mixes stay on screen instead of
+     * being replaced by an error state.
+     */
+    fun refreshTopMixes() {
+        if (_isTopMixRefreshing.value) return
         viewModelScope.launch(Dispatchers.IO) {
+            _isTopMixRefreshing.value = true
             try {
-                syncUtils.performFullSync()
+                when (val result = refreshLibraryTopMixes()) {
+                    RefreshLibraryTopMixesResult.Success -> Unit
+                    is RefreshLibraryTopMixesResult.Failure -> {
+                        reportException(result.cause ?: IllegalStateException(result.reason.name))
+                        _topMixEvents.emit(result.reason.toUserMessage())
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                timber.log.Timber.e(e, "Error during manual sync")
                 reportException(e)
             } finally {
-                _isRefreshing.value = false
+                _isTopMixRefreshing.value = false
             }
         }
     }
+
+    fun syncAllLibrary() {
+        if (_isRefreshing.value) return
+        _isRefreshing.value = true
+        refresher.refresh(LibrarySyncTarget.All)
+        viewModelScope.launch {
+            refresher.state.filter { it !is LibraryRefreshState.Loading }.first()
+            _isRefreshing.value = false
+        }
+    }
+
+    fun onRefreshErrorShown() = refresher.clearError()
 
     fun buildYourMix(
         basis: BuildYourMixBasis,
@@ -865,6 +1007,19 @@ constructor(
 }
 
 @Immutable
+/** Maps a top-mix generation failure to a message the user can act on. */
+private fun TopMixGenerationFailure.toUserMessage(): String =
+    when (this) {
+        TopMixGenerationFailure.AI_NOT_CONFIGURED ->
+            "Add an AI provider and key in Settings to generate mixes"
+        TopMixGenerationFailure.NO_RECENT_HISTORY ->
+            "Play a few songs first — mixes are built from recent listening"
+        TopMixGenerationFailure.NO_VALID_MIXES ->
+            "None of the suggested songs could be matched to YouTube Music"
+        TopMixGenerationFailure.AI_REQUEST_FAILED ->
+            "Couldn't reach the AI provider — try again in a moment"
+    }
+
 sealed interface LibraryTopMixesUiState {
     data object Loading : LibraryTopMixesUiState
 

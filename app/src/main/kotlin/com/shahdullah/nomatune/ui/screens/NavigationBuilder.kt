@@ -122,7 +122,7 @@ fun NavGraphBuilder.navigationBuilder(
     composable(
         Screens.Library.route,
     ) {
-        LibraryScreen(navController)
+        LibraryScreen(navController, scrollBehavior)
     }
     composable("local_songs") {
         LocalSongScreen(navController)

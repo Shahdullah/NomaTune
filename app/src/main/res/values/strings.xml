@@ -1063,4 +1063,37 @@
     <string name="build_your_mix_no_manual_match">No songs found matching your input</string>
     <string name="build_your_mix_failed">Failed to build mix</string>
     <string name="visibility_off">Hidden</string>
+    <!-- Library screens -->
+    <string name="all_time">All time</string>
+    <string name="library_duration_days_hours">%1$dd %2$dh</string>
+    <string name="library_duration_hours_minutes">%1$dh %2$dm</string>
+    <string name="library_duration_minutes">%1$dm</string>
+    <string name="library_empty_albums_desc">Save albums from search or an artist page to collect them here.</string>
+    <string name="library_empty_albums_title">Your album shelf is empty</string>
+    <string name="library_empty_artists_desc">Subscribe to artists you love to keep them one tap away.</string>
+    <string name="library_empty_artists_title">No artists yet</string>
+    <string name="library_empty_playlists_desc">Create your first playlist, or pull down to sync your YouTube Music library.</string>
+    <string name="library_empty_playlists_title">No playlists yet</string>
+    <string name="library_empty_songs_desc">Songs you like, download or save to your library will show up here.</string>
+    <string name="library_empty_songs_title">No songs here yet</string>
+    <string name="library_empty_spotify_desc">Pull down to refresh, or check your Spotify connection in settings.</string>
+    <string name="library_empty_spotify_title">No Spotify playlists</string>
+    <string name="library_explicit">Explicit</string>
+    <string name="library_random_album">Random album</string>
+    <string name="library_random_artist">Random artist</string>
+    <string name="library_reorder_playlists">Reorder playlists</string>
+    <string name="library_sort_options">Sort options</string>
+    <string name="library_spotify_sync_failed">Couldn\'t refresh Spotify playlists</string>
+    <string name="library_stat_listened">Listened</string>
+    <string name="library_stat_total_length">Total length</string>
+    <string name="library_sync_failed">Couldn’t sync your YouTube Music library</string>
+    <string name="library_tab_sections">Library sections</string>
+    <string name="library_your_albums">Your Albums</string>
+    <string name="manage_tags">Manage Tags</string>
+    <string name="my_top">My top</string>
+    <string name="not_logged_in_youtube">Not logged in to YouTube</string>
+    <string name="podcast">Podcast</string>
+    <string name="spotify_account">Spotify account</string>
+    <string name="spotify_playlists">Spotify Playlist</string>
+    <string name="sync_disabled">Sync disabled</string>
 </resources>
