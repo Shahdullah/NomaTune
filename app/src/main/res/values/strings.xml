@@ -1151,4 +1151,25 @@
     <string name="show_download_tracks">Show tracks</string>
     <string name="sort_downloads">Sort downloads</string>
     <string name="view_downloaded">View downloaded</string>
+
+    <plurals name="n_songs_offline">
+        <item quantity="one">%d song offline</item>
+        <item quantity="other">%d songs offline</item>
+    </plurals>
+    <plurals name="n_downloads_active">
+        <item quantity="one">%d download in progress</item>
+        <item quantity="other">%d downloads in progress</item>
+    </plurals>
+    <plurals name="n_downloads_failed">
+        <item quantity="one">%d failed</item>
+        <item quantity="other">%d failed</item>
+    </plurals>
+    <plurals name="remove_downloads_selection_confirm">
+        <item quantity="one">Remove %d selected download? This action cannot be undone.</item>
+        <item quantity="other">Remove %d selected downloads? This action cannot be undone.</item>
+    </plurals>
+    <plurals name="cancel_downloads_selection_confirm">
+        <item quantity="one">%d selected download will stop and its partial file will be deleted.</item>
+        <item quantity="other">%d selected downloads will stop and their partial files will be deleted.</item>
+    </plurals>
 </resources>
