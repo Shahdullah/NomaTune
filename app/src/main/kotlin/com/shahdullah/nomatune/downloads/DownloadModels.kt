@@ -145,9 +145,7 @@ fun Download.toDownloadStatus(): DownloadStatus =
  * or queued one can still report 0, so fall back to now instead of showing 1970.
  */
 fun Download.updatedAtMillis(): Long =
-    listOf(lastProgressTimeMs, startTimeMs)
-        .firstOrNull { it > 0L }
-        ?: System.currentTimeMillis()
+    startTimeMs.takeIf { it > 0L } ?: System.currentTimeMillis()
 
 /** Human label for "Date updated", e.g. "Today, 14:02" or "12 Nov 2026". */
 fun formatDownloadDate(timestampMs: Long): String {

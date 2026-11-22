@@ -13,6 +13,7 @@
 package com.shahdullah.nomatune.downloads
 
 import android.content.Context
+import androidx.media3.common.C
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadService
 import com.google.common.collect.ImmutableList
@@ -230,7 +231,7 @@ class ManageDownloadsUseCase
                     context,
                     ExoDownloadService::class.java,
                     songId,
-                    Download.STOP_REASON_PAUSED_BY_APP,
+                    C.STOP_REASON_PAUSED_BY_APP,
                     false,
                 )
             }
@@ -242,7 +243,7 @@ class ManageDownloadsUseCase
                     context,
                     ExoDownloadService::class.java,
                     songId,
-                    Download.STOP_REASON_NONE,
+                    C.STOP_REASON_NONE,
                     false,
                 )
             }
