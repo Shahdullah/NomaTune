@@ -82,8 +82,10 @@
 
   ### 🔽 Direct APK
   1. Go to [Releases](https://github.com/Shahdullah/NomaTune/releases/latest)
-  2. Download the APK for your device (arm64 recommended for most phones)
-  3. Install on your Android device (enable "Install from unknown sources")
+  2. Download the APK for your device (`arm64` for most modern phones, or `universal` if you’re unsure).
+  3. Open the APK and, if Android prompts you, allow **Install unknown apps** for the browser or file manager opening it.
+
+  The **Total downloads** badge counts GitHub release asset downloads across all releases. It does not count unique users or installs.
 
   ### 📦 Coming Soon
   - F-Droid
@@ -95,7 +97,7 @@
   ## 🛠️ Building from Source
 
   ### Requirements
-  - Android Studio Ladybug or newer
+  - [Android Studio with support for Android Gradle Plugin 9.2](https://developer.android.com/studio/releases#android_gradle_plugin_and_android_studio_compatibility)
   - JDK 21
   - Android SDK 37
 
@@ -112,7 +114,7 @@
 
   This project is licensed under the **GNU General Public License v3.0** — see [LICENSE](LICENSE) for details.
 
-  
+
 
   ## ❤️ Credits & Inspiration
 
@@ -125,8 +127,6 @@
 
   Thank you to rukamori for the inspiration; parts of the UI/UX and some feature concepts were adapted with respect and appreciation. If you are the original author and would like additional attribution or changes, please open an issue or submit a pull request and we'll update this section promptly.
 
-  
+
 
   © 2026 Shahdullah — [github.com/shahdullah](https://github.com/shahdullah)
-
-  </div>
