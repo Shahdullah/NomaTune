@@ -30,15 +30,18 @@ while True:
     page += 1
 latest = get('/latest')['tag_name']
 badge('release', 'release', latest, '#a34b00')
-badge('downloads', 'total downloads', f'{total:,}', '#176b32')
 
 # A new image URL prevents GitHub and browsers from reusing an older badge.
 from hashlib import sha256
 readme = Path('README.md')
 text = readme.read_text()
-for name in ('release', 'downloads'):
+for name in ('release',):
     path = f'assets/badges/{name}.svg'
     version = sha256(Path(path).read_bytes()).hexdigest()[:12]
     text = re.sub(r'(\(' + re.escape(path) + r')(?:\?v=[a-f0-9]+)?\)',
                   lambda match: f'{match[1]}?v={version})', text)
+text, matches = re.subn(r'\*\*Total downloads: [0-9,]+\*\*',
+                        f'**Total downloads: {total:,}**', text)
+if matches != 1:
+    raise ValueError('Expected exactly one README downloads counter')
 readme.write_text(text)

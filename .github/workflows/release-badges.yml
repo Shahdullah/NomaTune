@@ -1,7 +1,7 @@
 name: Refresh release badges
 on:
   schedule:
-    - cron: '37 3 * * *'
+    - cron: '37 3,15 * * *'
   workflow_dispatch:
   release:
     types: [published, edited, deleted]
@@ -20,7 +20,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
       - run: |
-          git add README.md assets/badges/*.svg
+          git add README.md assets/badges/release.svg
           if git diff --cached --quiet; then exit 0; fi
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Refresh release badges'
           git push origin HEAD:refs/heads/main
