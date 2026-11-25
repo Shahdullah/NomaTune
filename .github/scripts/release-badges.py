@@ -40,8 +40,14 @@ for name in ('release',):
     version = sha256(Path(path).read_bytes()).hexdigest()[:12]
     text = re.sub(r'(\(' + re.escape(path) + r')(?:\?v=[a-f0-9]+)?\)',
                   lambda match: f'{match[1]}?v={version})', text)
-text, matches = re.subn(r'\*\*Total downloads: [0-9,]+\*\*',
-                        f'**Total downloads: {total:,}**', text)
+# Use a different file path, not a query string GitHub can strip.
+name = f'downloads-{total}'
+badge(name, 'total downloads', f'{total:,}', '#176b32')
+for old in Path('assets/badges').glob('downloads*.svg'):
+    if old.name != f'{name}.svg':
+        old.unlink()
+text, matches = re.subn(r'assets/badges/downloads(?:-[0-9]+)?[.]svg',
+                        f'assets/badges/{name}.svg', text)
 if matches != 1:
-    raise ValueError('Expected exactly one README downloads counter')
+    raise ValueError('Expected exactly one README downloads badge')
 readme.write_text(text)
