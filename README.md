@@ -13,7 +13,7 @@
   [![License: GPL v3](https://img.shields.io/badge/License-GPL_v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
   [![Platform](https://img.shields.io/badge/platform-Android-green.svg)](https://www.android.com)
   [![GitHub release](assets/badges/release.svg?v=871eb1dd8583)](https://github.com/Shahdullah/NomaTune/releases)
-  [![Total GitHub release downloads](assets/badges/downloads-8891.svg)](https://github.com/Shahdullah/NomaTune/releases)
+  [![Total GitHub release downloads](assets/badges/downloads-8968.svg)](https://github.com/Shahdullah/NomaTune/releases)
   [![GitHub stars](https://img.shields.io/github/stars/Shahdullah/NomaTune?style=social)](https://github.com/Shahdullah/NomaTune/stargazers)
 
   [**📥 Download**](https://github.com/Shahdullah/NomaTune/releases/latest) • [**🌐 Website**](https://nomatune.vercel.app) • [**🐛 Report Bug**](https://github.com/Shahdullah/NomaTune/issues) • [**💬 Discord**](https://discord.gg/6yqZY6xj)
